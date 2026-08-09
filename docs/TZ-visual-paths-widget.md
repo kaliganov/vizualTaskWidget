@@ -1,10 +1,53 @@
-# Техническое задание: виджет Visual Paths (портал portalSoft)
+# Техническое задание: Visual Paths (standalone → виджет portalSoft)
 
-**Версия документа:** 1.0  
+**Версия документа:** 1.1  
 **Дата:** 2026-08-09  
 **Статус:** черновик для согласования  
 **Заказчик:** portalSoft  
-**Тип продукта:** встраиваемый виджет (HTTP-клиент) + собственные REST API на backend portalSoft (Nest.js)
+**Тип продукта:** сначала **самостоятельное приложение** (MVP); целевая форма — виджет + API в Nest.js portalSoft
+
+---
+
+## 0. Стратегия поставки: Standalone First
+
+### 0.1. Решение
+
+**Да — сначала независимое приложение Visual Paths**, без ожидания разработчиков portalSoft. После подтверждения UX — перенос в виджет и API-модуль portal.
+
+### 0.2. Зачем
+
+| Плюс | Пояснение |
+|------|-----------|
+| Скорость | Не блокируемся на CORS, postMessage, релизном цикле portal |
+| Проверка идеи | «Пощупать» схему + канбан вживую |
+| Дешёвый провал | Если концепт не зайдёт — monorepo portal не трогали |
+| Чистая граница | Свой API ≈ будущий \/api/v1/visual-paths\ |
+
+### 0.3. Правила, чтобы перенос был дешёвым
+
+1. Стек: Nest.js + PostgreSQL, React + TypeScript.
+2. \AuthProvider\ (\getAccessToken\, \getUser\): standalone = свой login; widget = postMessage/Host.
+3. API-клиент только на \/api/v1/visual-paths\ (+ auth/health в standalone).
+4. Корень UI — \<VisualPathsApp />\ без shell portal.
+5. Даже в standalone есть \companyId\ (demo-tenant).
+6. В MVP не делать: SSO portal, iframe-контракт, CSP Host.
+
+### 0.4. Режимы
+
+| Режим | Auth | API |
+|-------|------|-----|
+| \standalone\ (сейчас) | упрощённый login | свой Nest |
+| \widget\ (потом) | token от portal | \{portal}/api/v1\ |
+
+Env: \VITE_APP_MODE=standalone|widget\, \VITE_API_BASE_URL\.
+
+### 0.5. Урезание MVP
+
+Одна компания/простая регистрация; канбан сначала CRUD+DnD+описание/assignees; файлы и postMessage — позже.
+
+### 0.6. Когда переходить к виджету
+
+Демо: цель → ≥2 пути → канбан узла → прогресс на схеме — и заказчик хочет это в portal.
 
 ---
 
@@ -37,7 +80,8 @@
 
 ### 1.4. Форма поставки
 
-Виджет для основного приложения **portalSoft** (Nest.js backend + существующий frontend). Виджет — **внешний HTTP-клиент**: без прямого доступа к PostgreSQL и внутренним in-process API backend.
+**Этап A (сейчас):** standalone-приложение (свой frontend + свой Nest API), локальный/отдельный деплой.  
+**Этап B (после ОКки):** UI как виджет portalSoft; API — модуль в Nest portal (или прокси на тот же контракт). В обоих случаях UI — **HTTP-клиент** без прямого доступа к БД.
 
 ### 1.5. Вне scope (v1)
 
@@ -646,29 +690,29 @@ NotificationEvent
 
 ## 14. Этапы реализации
 
-### Phase 0 — Согласование (3–5 дн.)
-Утверждение ТЗ, postMessage-контракта, ролей, дизайна колонок.
+### Phase 0 — Согласование standalone (1–3 дн.)
+Утверждение §0, колонок канбана, стека; postMessage/portal — отложить.
 
-### Phase 1 — Backend foundation
-Модуль Nest, миграции, Goals CRUD, Graph CRUD + DAG validation, auth guards.
+### Phase 1 — Standalone backend
+Свой Nest: auth упрощённый, миграции, Goals + Graph + DAG, JWT + companyId.
 
 ### Phase 2 — Canvas MVP
-Список целей, холст, узлы, рёбра, timeline, double-click stub, save graph.
+Список целей, холст, узлы, рёбра, timeline, double-click → канбан stub, save graph.
 
 ### Phase 3 — Kanban MVP
-4 колонки, cards CRUD, D&D move, card details (description, assignees, labels).
+4 колонки, cards CRUD, D&D, details (description, assignees, labels).
 
-### Phase 4 — Kanban full
-Чек-листы, комментарии, WIP, block, history, templates, time tracking, filters, archive.
+### Phase 4 — Kanban full + polish схемы
+Чек-листы, комментарии, WIP, block, history, прогресс узла, критический путь.
 
-### Phase 5 — Host integration
-iframe/npm embed, postMessage, CORS, CSP, роли UI, обработка 401/refresh.
+### Phase 5 — Демо / product decision
+Пользовательская обкатка; go / no-go на виджет.
 
-### Phase 6 — Polish
-Критический путь, прогресс узла, экспорт PNG/SVG, empty states, i18n, perf.
+### Phase 6 — Widgetization (только после go)
+Вынести \VisualPathsApp\, AuthProvider под Host, iframe/npm, CORS/CSP, перенос API в portal или BFF.
 
 ### Phase 7 — QA & handover
-E2E, tenant isolation tests, документация API, runbook.
+E2E, tenant isolation, OpenAPI, runbook.
 
 ---
 
