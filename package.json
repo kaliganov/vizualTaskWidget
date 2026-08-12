@@ -1,0 +1,9 @@
+{
+  "name": "visual-paths",
+  "private": true,
+  "scripts": {
+    "db:up": "docker compose up -d",
+    "dev:server": "npm run start:dev --prefix server",
+    "dev:web": "npm run dev --prefix web"
+  }
+}

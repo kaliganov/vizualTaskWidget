@@ -1,26 +1,44 @@
-# Visual Paths Widget
+# Visual Paths
 
-Виджет **Visual Paths** для portalSoft: визуальное планирование целей через параллельные пути на временной шкале + канбан задач внутри узлов.
-
-**Стратегия:** сначала standalone-приложение (MVP), затем встраивание в portal как виджет.
+Standalone-приложение: схема путей на временной шкале + канбан внутри узлов.
 
 ## Документация
 
 | Документ | Описание |
 |----------|----------|
-| [docs/TZ-visual-paths-widget.md](docs/TZ-visual-paths-widget.md) | Техническое задание v1.1 |
-| [docs/TZ-analysis.md](docs/TZ-analysis.md) | Анализ ТЗ: вопросы заказчику, упрощения, оценка сроков |
+| [docs/plan.md](docs/plan.md) | План работ |
+| [docs/resheniya-zakazchik.md](docs/resheniya-zakazchik.md) | Решения заказчика |
+| [docs/TZ-visual-paths-widget.md](docs/TZ-visual-paths-widget.md) | ТЗ |
 
-## Стек (план)
+## Запуск локально
 
-- **Frontend:** React 18+, TypeScript, Vite, @xyflow/react, @dnd-kit
-- **Backend:** Nest.js, PostgreSQL
-- **API:** `/api/v1/visual-paths`
+1. Включить Docker Desktop и поднять Postgres:
 
-## Статус
+```
+cd C:\Users\kalig\Project\visualTask
+docker compose up -d
+```
 
-Фаза **0 — согласование**. Код ещё не начат.
+2. API (терминал 1):
 
-## Репозиторий
+```
+cd C:\Users\kalig\Project\visualTask\server
+copy .env.example .env
+npm run start:dev
+```
 
-https://github.com/kaliganov/vizualTaskWidget.git
+3. UI (терминал 2):
+
+```
+cd C:\Users\kalig\Project\visualTask\web
+copy .env.example .env
+npm run dev
+```
+
+Открыть http://127.0.0.1:5173
+
+**Вход:** `founder@demo.local` / `demo123`
+
+## Стек
+
+Nest.js + PostgreSQL · React + Vite · @xyflow/react
