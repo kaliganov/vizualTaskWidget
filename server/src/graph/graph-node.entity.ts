@@ -8,7 +8,7 @@ import {
 import { Goal } from '../goals/goal.entity';
 
 export type NodeType = 'task' | 'goal_anchor';
-export type NodeStatus = 'not_started' | 'in_progress' | 'done' | 'blocked';
+export type NodeStatus = 'not_started' | 'in_progress' | 'done';
 export type DurationUnit = 'hour' | 'day' | 'week';
 
 @Entity('graph_nodes')
@@ -46,6 +46,10 @@ export class GraphNode {
 
   @Column({ default: 'not_started' })
   status: NodeStatus;
+
+  /** Доля карточек в «Готово». null — карточек нет, статус ручной. */
+  @Column({ type: 'int', nullable: true })
+  progress: number | null;
 
   @Column({ type: 'float', default: 0 })
   progressCached: number;

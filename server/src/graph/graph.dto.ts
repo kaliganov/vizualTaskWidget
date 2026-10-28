@@ -1,14 +1,17 @@
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsIn,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   ValidateNested,
 } from 'class-validator';
 
 export class GraphNodeDto {
-  @IsString()
+  @IsUUID()
   id: string;
 
   @IsString()
@@ -53,13 +56,13 @@ export class GraphNodeDto {
 }
 
 export class GraphEdgeDto {
-  @IsString()
+  @IsUUID()
   id: string;
 
-  @IsString()
+  @IsUUID()
   sourceNodeId: string;
 
-  @IsString()
+  @IsUUID()
   targetNodeId: string;
 
   @IsOptional()
@@ -76,8 +79,12 @@ export class GraphEdgeDto {
 }
 
 export class PutGraphDto {
-  @IsNumber()
+  @IsInt()
   version: number;
+
+  @IsOptional()
+  @IsString()
+  companyId?: string;
 
   @IsArray()
   @ValidateNested({ each: true })
@@ -88,4 +95,11 @@ export class PutGraphDto {
   @ValidateNested({ each: true })
   @Type(() => GraphEdgeDto)
   edges: GraphEdgeDto[];
+}
+
+export class ManualStatusDto {
+  @IsIn(['not_started', 'in_progress', 'done'], {
+    message: 'Неизвестный статус',
+  })
+  status: 'not_started' | 'in_progress' | 'done';
 }

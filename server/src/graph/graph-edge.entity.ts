@@ -38,7 +38,7 @@ export class GraphEdge {
   @Column({ type: 'float' })
   durationValue: number;
 
-  @Column({ default: 'day' })
+  @Column({ type: 'varchar', default: 'day' })
   durationUnit: DurationUnit;
 
   @Column({ default: '' })

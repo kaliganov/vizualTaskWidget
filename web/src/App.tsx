@@ -4,7 +4,7 @@ import { useAuth } from './auth';
 import { LoginPage } from './pages/Login';
 import { GoalsPage } from './pages/Goals';
 import { CanvasPage } from './pages/Canvas';
-import { BoardStubPage } from './pages/BoardStub';
+import { BoardPage } from './pages/Board';
 
 function Private({ children }: { children: ReactNode }) {
   const { user, ready } = useAuth();
@@ -41,7 +41,7 @@ export function App() {
         path="/goals/:goalId/nodes/:nodeId/board"
         element={
           <Private>
-            <BoardStubPage />
+            <BoardPage />
           </Private>
         }
       />

@@ -1,18 +1,20 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { GraphNode } from './graph-node.entity';
-import { GraphEdge } from './graph-edge.entity';
 import { Goal } from '../goals/goal.entity';
-import { GraphService } from './graph.service';
+import { KanbanModule } from '../kanban/kanban.module';
+import { User } from '../users/user.entity';
 import { GraphController } from './graph.controller';
-import { GoalsModule } from '../goals/goals.module';
+import { GraphEdge } from './graph-edge.entity';
+import { GraphNode } from './graph-node.entity';
+import { GraphService } from './graph.service';
+import { NodesController } from './nodes.controller';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([GraphNode, GraphEdge, Goal]),
-    GoalsModule,
+    TypeOrmModule.forFeature([GraphNode, GraphEdge, Goal, User]),
+    KanbanModule,
   ],
   providers: [GraphService],
-  controllers: [GraphController],
+  controllers: [GraphController, NodesController],
 })
 export class GraphModule {}

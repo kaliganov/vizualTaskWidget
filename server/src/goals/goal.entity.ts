@@ -25,6 +25,9 @@ export class Goal {
   @Column({ type: 'date', nullable: true })
   deadline: string | null;
 
+  @Column({ type: 'date' })
+  scaleStart: string;
+
   @Column({ default: 'active' })
   status: GoalStatus;
 

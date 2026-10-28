@@ -1,10 +1,18 @@
-const BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3000/api/v1';
+const BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3001/api/v1';
 
 export type ApiError = {
-  message: string;
+  message: string | string[] | Record<string, unknown>;
   alertCode?: string;
   statusCode?: number;
 };
+
+export function errorMessage(err: unknown) {
+  const message = (err as ApiError)?.message;
+  if (typeof message === 'string' && message) return message;
+  if (Array.isArray(message)) return message.join(', ');
+  if (message && typeof message === 'object') return JSON.stringify(message);
+  return 'Ошибка запроса';
+}
 
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('vp_token');

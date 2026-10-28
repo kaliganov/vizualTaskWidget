@@ -15,6 +15,7 @@ export function GoalsPage() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [title, setTitle] = useState('Постройка дома для продажи');
   const [deadline, setDeadline] = useState('');
+  const [scaleStart, setScaleStart] = useState('2026-08-01');
 
   async function load() {
     setGoals(await api<Goal[]>('/visual-paths/goals'));
@@ -28,7 +29,11 @@ export function GoalsPage() {
     e.preventDefault();
     await api('/visual-paths/goals', {
       method: 'POST',
-      body: JSON.stringify({ title, deadline: deadline || undefined }),
+      body: JSON.stringify({
+        title,
+        deadline: deadline || undefined,
+        scaleStart: scaleStart || undefined,
+      }),
     });
     setTitle('');
     await load();
@@ -47,8 +52,11 @@ export function GoalsPage() {
         <form className="card" onSubmit={create} style={{ display: 'grid', gap: 10, maxWidth: 520 }}>
           <strong>Новая цель</strong>
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Название" required />
+          <label className="muted">Дедлайн</label>
           <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
-          <button className="btn" type="submit">Создать</button>
+          <label className="muted">Начало шкалы</label>
+          <input type="date" value={scaleStart} onChange={(e) => setScaleStart(e.target.value)} />
+          <button className="btn" type="submit">Создать цель</button>
         </form>
         <div className="goal-list">
           {goals.map((g) => (
@@ -60,7 +68,9 @@ export function GoalsPage() {
               <span className="muted">Открыть схему →</span>
             </Link>
           ))}
-          {goals.length === 0 && <p className="muted">Пока нет целей — создайте первую.</p>}
+          {goals.length === 0 && (
+            <p className="muted">Пока нет целей. Нажмите «Создать цель».</p>
+          )}
         </div>
       </div>
     </div>

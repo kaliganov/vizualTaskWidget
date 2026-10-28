@@ -1,7 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
-import type { ApiError } from '../api';
+import { errorMessage } from '../api';
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -17,7 +17,7 @@ export function LoginPage() {
       await login(email, password);
       nav('/goals');
     } catch (err) {
-      setError((err as ApiError).message || 'Ошибка входа');
+      setError(errorMessage(err));
     }
   }
 

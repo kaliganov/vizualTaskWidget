@@ -35,7 +35,8 @@ copy .env.example .env
 npm run dev
 ```
 
-Открыть http://127.0.0.1:5173
+Открыть http://127.0.0.1:5173  
+API: http://127.0.0.1:3001 (порт 3000 часто занят portal gateway)
 
 **Вход:** `founder@demo.local` / `demo123`
 

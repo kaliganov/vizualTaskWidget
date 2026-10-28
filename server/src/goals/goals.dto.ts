@@ -1,8 +1,18 @@
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+} from 'class-validator';
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export class CreateGoalDto {
   @IsString()
-  @MaxLength(200)
+  @IsNotEmpty({ message: 'Укажите название' })
+  @MaxLength(200, { message: 'Название не длиннее 200 символов' })
   title: string;
 
   @IsOptional()
@@ -10,14 +20,23 @@ export class CreateGoalDto {
   description?: string;
 
   @IsOptional()
-  @IsString()
+  @Matches(DATE, { message: 'Дедлайн в формате ГГГГ-ММ-ДД' })
   deadline?: string;
+
+  @IsOptional()
+  @Matches(DATE, { message: 'Начало шкалы в формате ГГГГ-ММ-ДД' })
+  scaleStart?: string;
+
+  @IsOptional()
+  @IsString()
+  companyId?: string;
 }
 
 export class UpdateGoalDto {
   @IsOptional()
   @IsString()
-  @MaxLength(200)
+  @IsNotEmpty({ message: 'Укажите название' })
+  @MaxLength(200, { message: 'Название не длиннее 200 символов' })
   title?: string;
 
   @IsOptional()
@@ -25,10 +44,20 @@ export class UpdateGoalDto {
   description?: string;
 
   @IsOptional()
-  @IsString()
-  deadline?: string;
+  @Matches(DATE, { message: 'Дедлайн в формате ГГГГ-ММ-ДД' })
+  deadline?: string | null;
+
+  @IsOptional()
+  @Matches(DATE, { message: 'Начало шкалы в формате ГГГГ-ММ-ДД' })
+  scaleStart?: string;
+
+  @IsOptional()
+  @IsIn(['draft', 'active', 'completed', 'archived'], {
+    message: 'Неизвестный статус цели',
+  })
+  status?: 'draft' | 'active' | 'completed' | 'archived';
 
   @IsOptional()
   @IsString()
-  status?: string;
+  companyId?: string;
 }

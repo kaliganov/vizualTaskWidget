@@ -136,7 +136,114 @@ a { color: var(--accent); }
   border-color: var(--accent-2);
   background: #fff7ed;
 }
+.task-node.status-not_started .disk { border-color: #a8a29e; background: #fafaf9; }
+.task-node.status-in_progress .disk { border-color: #2563eb; background: #eff6ff; }
+.task-node.status-done .disk { border-color: #15803d; background: #f0fdf4; }
+.task-node.anchor .disk { border-color: var(--accent-2); background: #fff7ed; }
 .task-node.critical .disk { box-shadow: 0 0 0 3px #fbbf24; }
-.task-node .meta { margin-top: 6px; font-size: 11px; color: var(--muted); }
+.task-node .meta { margin-top: 4px; font-size: 11px; color: var(--muted); }
+.task-node { width: 168px; }
+.react-flow__edge.critical-edge .react-flow__edge-path { stroke: #d97706; stroke-width: 2.5; }
+
+.day-axis {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.day-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: rgba(120, 113, 108, 0.35);
+}
+.day-line.today { background: #c2410c; }
+.day-label {
+  position: absolute;
+  left: 4px;
+  transform-origin: top left;
+  font-size: 11px;
+  line-height: 1.2;
+  color: #78716c;
+  white-space: nowrap;
+}
+.day-line.today .day-label { color: #c2410c; font-weight: 600; }
+
+.deadline-banner {
+  position: absolute;
+  z-index: 5;
+  top: 56px;
+  left: 12px;
+  right: 160px;
+  background: #fef2f2;
+  color: var(--danger);
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.board {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(220px, 1fr));
+  gap: 12px;
+  padding: 16px;
+  overflow: auto;
+  align-items: start;
+}
+.column {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  min-height: 240px;
+}
+.kcard {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+  cursor: grab;
+}
+.kcard.overlay {
+  cursor: grabbing;
+  box-shadow: 0 8px 24px rgba(28, 25, 23, 0.18);
+  width: 220px;
+}
+.row { display: flex; gap: 8px; }
+.row input { flex: 1; }
+.dialog-back {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 25, 23, 0.35);
+  display: grid;
+  place-items: center;
+  z-index: 20;
+  padding: 24px;
+}
+.dialog {
+  width: min(640px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  display: grid;
+  gap: 8px;
+}
+.dialog-head { display: flex; justify-content: space-between; align-items: center; }
+.dialog input, .dialog select, .dialog textarea, .column input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+}
+.checks, .check-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.comment { border-top: 1px solid var(--line); padding-top: 6px; }
 
 .error { color: var(--danger); font-size: 13px; }

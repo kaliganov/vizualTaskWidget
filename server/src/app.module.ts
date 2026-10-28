@@ -6,6 +6,8 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { GoalsModule } from './goals/goals.module';
 import { GraphModule } from './graph/graph.module';
+import { KanbanModule } from './kanban/kanban.module';
+import { KanbanSchema1730000000000 } from './migrations/1730000000000-KanbanSchema';
 import { SeedService } from './seed/seed.service';
 
 @Module({
@@ -22,12 +24,15 @@ import { SeedService } from './seed/seed.service';
         database: config.get('DATABASE_NAME', 'visualtask'),
         autoLoadEntities: true,
         synchronize: true,
+        migrations: [KanbanSchema1730000000000],
+        migrationsRun: true,
       }),
     }),
     UsersModule,
     AuthModule,
     GoalsModule,
     GraphModule,
+    KanbanModule,
   ],
   controllers: [HealthController],
   providers: [SeedService],
