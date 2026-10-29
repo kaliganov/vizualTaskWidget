@@ -29,7 +29,15 @@ type CanonNode = {
   assigneeId: string | null;
   estimateValue: number;
   estimateUnit: string;
+  width: number | null;
+  height: number | null;
 };
+
+function storedSize(value: number | null | undefined) {
+  if (value === null || value === undefined) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? round3(n) : null;
+}
 
 function round3(value: number) {
   return Math.round(Number(value) * 1000) / 1000;
@@ -137,6 +145,8 @@ export class GraphService {
           prev.assigneeId = effective.assigneeId;
           prev.estimateValue = effective.estimateValue;
           prev.estimateUnit = effective.estimateUnit as DurationUnit;
+          prev.width = effective.width;
+          prev.height = effective.height;
           prev.plannedStart = dates.plannedStart;
           prev.plannedEnd = dates.plannedEnd;
           await em.save(prev);
@@ -160,6 +170,8 @@ export class GraphService {
             assigneeId: effective.assigneeId,
             estimateValue: effective.estimateValue,
             estimateUnit: effective.estimateUnit as DurationUnit,
+            width: effective.width,
+            height: effective.height,
           }),
         );
         await this.kanban.createBoard(em, effective.id);
@@ -264,6 +276,8 @@ export class GraphService {
         assigneeId: node.assigneeId,
         estimateValue: Number(node.estimateValue),
         estimateUnit: node.estimateUnit,
+        width: storedSize(node.width),
+        height: storedSize(node.height),
       })),
       edges: edges.map((edge) => ({
         id: edge.id,
@@ -452,6 +466,12 @@ export class GraphService {
       assigneeId: this.assigneeOf(node, existing),
       estimateValue: estimate.value,
       estimateUnit: estimate.unit,
+      width:
+        node.width === undefined ? storedSize(existing?.width) : storedSize(node.width),
+      height:
+        node.height === undefined
+          ? storedSize(existing?.height)
+          : storedSize(node.height),
     };
   }
 
@@ -467,6 +487,8 @@ export class GraphService {
       estimateValue:
         node.type === 'goal_anchor' ? 0 : Number(node.estimateValue),
       estimateUnit: node.type === 'goal_anchor' ? 'day' : node.estimateUnit,
+      width: storedSize(node.width),
+      height: storedSize(node.height),
     };
   }
 }

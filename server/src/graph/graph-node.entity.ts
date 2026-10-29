@@ -62,4 +62,11 @@ export class GraphNode {
 
   @Column({ default: 'day' })
   estimateUnit: DurationUnit;
+
+  /** Пусто — размер по умолчанию, узел не перерисовывается. */
+  @Column({ type: 'float', nullable: true })
+  width: number | null;
+
+  @Column({ type: 'float', nullable: true })
+  height: number | null;
 }

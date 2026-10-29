@@ -10,7 +10,6 @@ import {
   useNodesState,
   useReactFlow,
   useStore,
-  useViewport,
   ViewportPortal,
   type Connection,
   type Edge,
@@ -20,7 +19,7 @@ import '@xyflow/react/dist/style.css';
 import { api, errorMessage } from '../api';
 import { useAuth } from '../auth';
 import { TaskNode, type TaskData } from '../components/TaskNode';
-import { addCalendarDays, analyzeGraph, dayIndexFrom, formatEstimate, utcToday } from '../schedule';
+import { analyzeGraph, formatEstimate } from '../schedule';
 
 type User = { id: string; name: string };
 type GraphNode = {
@@ -37,6 +36,8 @@ type GraphNode = {
   estimateUnit: string;
   status: string;
   progress: number | null;
+  width: number | null;
+  height: number | null;
 };
 type GraphEdge = {
   id: string;
@@ -65,65 +66,65 @@ type Goal = {
 
 const nodeTypes = { task: TaskNode };
 const DAY = 48;
+const ROW_GAP = 80;
+const PASTE_SHIFT = 192;
 
-/** Шаг подписей: каждый день, пока колонка читается, иначе неделя или месяц. */
-function axisStep(zoom: number) {
-  const gap = DAY * zoom;
-  if (gap >= 32) return 1;
-  if (gap >= 8) return 7;
-  return 30;
+type TaskClip = {
+  sourceId: string;
+  title: string;
+  description: string;
+  assigneeId: string | null;
+  estimateValue: number;
+  estimateUnit: string;
+  status: string;
+  width: number | null;
+  height: number | null;
+  x: number;
+  y: number;
+  pasted: number;
+};
+
+function nodeBox(width: number | null, height: number | null) {
+  if (width == null || height == null) return {};
+  return { width, height, style: { width, height } };
 }
 
-function shortDate(iso: string) {
-  return `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
-}
-
-/** Вертикальные дни шкалы. x = 0 — это scaleStart, 48 px = один день. */
-function DayAxis({ scaleStart }: { scaleStart: string }) {
-  const { x, y, zoom } = useViewport();
-  const width = useStore((state) => state.width);
-  const height = useStore((state) => state.height);
-  if (!scaleStart || !width || !height || zoom <= 0) return null;
-
-  const left = -x / zoom;
-  const right = (width - x) / zoom;
-  const top = -y / zoom;
-  const bottom = (height - y) / zoom;
-  const step = axisStep(zoom);
-  const first = Math.floor(left / DAY);
-  const last = Math.ceil(right / DAY);
-  const days: number[] = [];
-  for (let day = Math.ceil(first / step) * step; day <= last; day += step) days.push(day);
-  const today = dayIndexFrom(scaleStart, utcToday());
-  if (today >= first && today <= last && !days.includes(today)) days.push(today);
-  days.sort((a, b) => a - b);
-
-  const labelOffset = 46 / zoom;
+/** Полосы только если узлы стоят в разных рядах по вертикали. Один ряд — без полосы. */
+function TaskLanes() {
+  const flowNodes = useStore((state) => state.nodes);
+  const lanes = useMemo(() => {
+    const sorted = [...flowNodes].sort((a, b) => a.position.y - b.position.y);
+    const groups: { y: number; minX: number; maxX: number; maxH: number; n: number }[] = [];
+    for (const node of sorted) {
+      const found = groups.find((lane) => Math.abs(node.position.y - lane.y) <= ROW_GAP);
+      const right = node.position.x + (node.width ?? 170);
+      const height = node.height ?? 90;
+      if (!found) {
+        groups.push({ y: node.position.y, minX: node.position.x, maxX: right, maxH: height, n: 1 });
+        continue;
+      }
+      found.y = (found.y * found.n + node.position.y) / (found.n + 1);
+      found.n += 1;
+      found.minX = Math.min(found.minX, node.position.x);
+      found.maxX = Math.max(found.maxX, right);
+      found.maxH = Math.max(found.maxH, height);
+    }
+    return groups;
+  }, [flowNodes]);
+  if (lanes.length < 2) return null;
   return (
     <ViewportPortal>
-      <div className="day-axis" style={{ height: bottom - top, transform: `translateY(${top}px)` }}>
-        {days.map((day) => {
-          const date = addCalendarDays(scaleStart, day);
-          const todayLine = day === today;
-          return (
-            <div
-              key={day}
-              className={todayLine ? 'day-line today' : 'day-line'}
-              style={{
-                transform: `translateX(${day * DAY}px)`,
-                width: (todayLine ? 2 : 1) / zoom,
-              }}
-            >
-              <span
-                className="day-label"
-                style={{ top: labelOffset, transform: `scale(${1 / zoom})` }}
-              >
-                {todayLine ? `сегодня ${shortDate(date)}` : shortDate(date)}
-              </span>
-            </div>
-          );
-        })}
-      </div>
+      {lanes.map((lane, index) => (
+        <div
+          key={`${Math.round(lane.y)}-${index}`}
+          className={`task-lane lane-${index % 5}`}
+          style={{
+            transform: `translate(${lane.minX - 28}px, ${lane.y - 28}px)`,
+            width: Math.max(180, lane.maxX - lane.minX + 56),
+            height: Math.max(118, lane.maxH + 28),
+          }}
+        />
+      ))}
     </ViewportPortal>
   );
 }
@@ -193,6 +194,11 @@ function CanvasInner() {
   const focused = useRef(false);
   const selectedRef = useRef<string | null>(null);
   const ignoreClearUntil = useRef(0);
+  const clipRef = useRef<TaskClip | null>(null);
+  const copiedStatus = useRef(new Map<string, string>());
+  const [clip, setClip] = useState<TaskClip | null>(null);
+  const resizeLive = useRef<(id: string, width: number, height: number) => void>(() => {});
+  const commitResize = useRef<() => void>(() => {});
   nodesRef.current = nodes;
   edgesRef.current = edges;
   selectedRef.current = selected;
@@ -213,16 +219,20 @@ function CanvasInner() {
         type: 'task',
         selected: node.id === selectedRef.current,
         position: { x: node.x, y: node.y },
+        ...nodeBox(node.width, node.height),
         data: {
           title: node.title,
           type: node.type,
           assigneeName: node.assigneeId ? names.get(node.assigneeId) : undefined,
+          role: node.type === 'goal_anchor' ? '' : node.description,
           estimateLabel:
             node.type === 'goal_anchor' ? '' : formatEstimate(node.estimateValue, node.estimateUnit),
           critical: node.type !== 'goal_anchor' && criticalNodes.has(node.id),
           status: node.status,
           progress: node.progress,
           dates: datesOf(node),
+          onResize: (width: number, height: number) => resizeLive.current(node.id, width, height),
+          onResizeEnd: () => commitResize.current(),
         },
       })),
     );
@@ -231,11 +241,11 @@ function CanvasInner() {
         id: edge.id,
         source: edge.sourceNodeId,
         target: edge.targetNodeId,
-        label: edge.label,
+        label: edge.label === '0д' || edge.label === '0ч' || edge.label === '0нед' ? undefined : edge.label,
         className: criticalEdges.has(edge.id) ? 'critical-edge' : undefined,
         style: criticalEdges.has(edge.id)
           ? { stroke: '#d97706', strokeWidth: 2.5 }
-          : undefined,
+          : { stroke: '#16a34a', strokeWidth: 1.5 },
       })),
     );
     const analyzed = analyzeGraph(
@@ -273,11 +283,14 @@ function CanvasInner() {
       scaleStart: goal.scaleStart ?? '',
     });
     applyGraph(g, list);
+    window.setTimeout(() => {
+      flow.fitView({ padding: 0.2, duration: 200 });
+    }, 80);
     if (!keepMessage) {
       setError('');
       setHint('сохранено');
     }
-  }, [applyGraph, goalId]);
+  }, [applyGraph, flow, goalId]);
 
   useEffect(() => {
     load().catch((err) => setError(errorMessage(err)));
@@ -306,6 +319,8 @@ function CanvasInner() {
           assigneeId: prev?.assigneeId ?? null,
           estimateValue: prev?.estimateValue ?? 1,
           estimateUnit: prev?.estimateUnit ?? 'day',
+          width: prev?.width ?? null,
+          height: prev?.height ?? null,
         };
       }),
       edges: edgesRef.current.map((edge) => ({
@@ -326,6 +341,7 @@ function CanvasInner() {
         return true;
       }
       applyGraph(g, usersRef.current);
+      await applyCopiedStatuses(g);
       setHint('сохранено');
       return true;
     } catch (err) {
@@ -340,6 +356,36 @@ function CanvasInner() {
     }
   }, [applyGraph, goalId, load]);
 
+  async function applyCopiedStatuses(g: Graph) {
+    for (const [id, status] of [...copiedStatus.current]) {
+      if (status === 'not_started') {
+        copiedStatus.current.delete(id);
+        continue;
+      }
+      if (!g.nodes.some((node) => node.id === id)) {
+        if (!nodesRef.current.some((node) => node.id === id)) copiedStatus.current.delete(id);
+        continue;
+      }
+      try {
+        await api(`/visual-paths/goals/${goalId}/nodes/${id}/manual-status`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status }),
+        });
+        const meta = extra.current.get(id);
+        if (meta) extra.current.set(id, { ...meta, status, progress: null });
+        setNodes((current) =>
+          current.map((node) =>
+            node.id === id ? { ...node, data: { ...node.data, status, progress: null } } : node,
+          ),
+        );
+        copiedStatus.current.delete(id);
+      } catch (err) {
+        copiedStatus.current.delete(id);
+        setError(errorMessage(err));
+      }
+    }
+  }
+
   function scheduleSave() {
     const seq = ++editSeq.current;
     window.clearTimeout(saveTimer.current);
@@ -349,14 +395,31 @@ function CanvasInner() {
     setHint('есть изменения');
   }
 
+  resizeLive.current = (id, width, height) => {
+    const meta = extra.current.get(id);
+    if (meta) extra.current.set(id, { ...meta, width, height });
+    setNodes((current) =>
+      current.map((node) =>
+        node.id === id ? { ...node, width, height, style: { width, height } } : node,
+      ),
+    );
+  };
+  commitResize.current = () => scheduleSave();
+
   const onConnect = useCallback(
     (connection: Connection) => {
-      const source = extra.current.get(connection.source!);
+      if (!connection.source || !connection.target) return;
+      if (edges.some((edge) => edge.source === connection.source && edge.target === connection.target)) {
+        setError('Такая стрелка уже есть');
+        return;
+      }
+      const source = extra.current.get(connection.source);
       const next = addEdge(
         {
           ...connection,
           id: crypto.randomUUID(),
           label: formatEstimate(source?.estimateValue ?? 1, source?.estimateUnit ?? 'day'),
+          style: { stroke: '#16a34a', strokeWidth: 1.5 },
         },
         edges,
       );
@@ -372,7 +435,7 @@ function CanvasInner() {
   );
 
   function addTask() {
-    const id = crypto.randomUUID();
+    const flowNodes = nodesRef.current;
     const bounds = document.querySelector('.react-flow')?.getBoundingClientRect();
     const center = bounds
       ? flow.screenToFlowPosition({
@@ -380,10 +443,18 @@ function CanvasInner() {
           y: bounds.top + bounds.height * 0.45,
         })
       : { x: 0, y: 200 };
-    const slot = nodes.filter((node) => node.data.type !== 'goal_anchor').length;
-    const x = Math.round(center.x / DAY) * DAY - DAY * (slot % 4);
-    const y = Math.round(center.y / 20) * 20 + 140 * Math.floor(slot / 4);
-    const node: GraphNode = {
+    let x = Math.round(center.x / DAY) * DAY;
+    let y = Math.round(center.y / 20) * 20;
+    for (let step = 0; step < 8; step += 1) {
+      const busy = flowNodes.some(
+        (node) => Math.abs(node.position.x - x) < DAY && Math.abs(node.position.y - y) < 40,
+      );
+      if (!busy) break;
+      x += DAY;
+    }
+
+    const id = crypto.randomUUID();
+    const created: GraphNode = {
       id,
       type: 'task',
       title: 'Новая задача',
@@ -397,25 +468,158 @@ function CanvasInner() {
       estimateUnit: 'day',
       status: 'not_started',
       progress: null,
+      width: null,
+      height: null,
     };
-    extra.current.set(id, node);
-    setNodes((current) => [
-      ...current,
-      {
-        id,
+
+    extra.current.set(id, created);
+    const nextNodes = flowNodes.map((item) => ({ ...item, selected: false }));
+    nextNodes.push({
+      id,
+      type: 'task',
+      selected: true,
+      position: { x, y },
+      data: {
+        title: created.title,
         type: 'task',
-        position: { x, y },
-        data: {
-          title: node.title,
-          type: 'task',
-          estimateLabel: '1д',
-          status: 'not_started',
-          progress: null,
-        },
+        estimateLabel: '1д',
+        status: 'not_started',
+        progress: null,
+        onResize: (width: number, height: number) => resizeLive.current(id, width, height),
+        onResizeEnd: () => commitResize.current(),
       },
-    ]);
+    });
+
+    nodesRef.current = nextNodes;
+    ignoreClearUntil.current = Date.now() + 400;
+    selectedRef.current = id;
+    setNodes(nextNodes);
+    setSelected(id);
+    setError('');
     scheduleSave();
   }
+
+  function copyTask() {
+    const id = selectedRef.current;
+    const source = id ? extra.current.get(id) : undefined;
+    if (!source || source.type !== 'task') {
+      setError(source?.type === 'goal_anchor' ? 'Цель копировать нельзя' : 'Сначала выберите задачу');
+      return false;
+    }
+    const node = nodesRef.current.find((item) => item.id === id);
+    const next: TaskClip = {
+      sourceId: source.id,
+      title: source.title,
+      description: source.description,
+      assigneeId: source.assigneeId,
+      estimateValue: source.estimateValue,
+      estimateUnit: source.estimateUnit,
+      status: source.status,
+      width: source.width,
+      height: source.height,
+      x: node?.position.x ?? source.x,
+      y: node?.position.y ?? source.y,
+      pasted: 0,
+    };
+    clipRef.current = next;
+    setClip(next);
+    setError('');
+    return true;
+  }
+
+  function pasteTask() {
+    const copied = clipRef.current;
+    if (!copied) {
+      setError('Сначала скопируйте задачу');
+      return false;
+    }
+    const index = copied.pasted + 1;
+    let x = copied.x + PASTE_SHIFT * index;
+    const y = copied.y;
+    for (let step = 0; step < 12; step += 1) {
+      const busy = nodesRef.current.some(
+        (node) => Math.abs(node.position.x - x) < 80 && Math.abs(node.position.y - y) < 40,
+      );
+      if (!busy) break;
+      x += PASTE_SHIFT;
+    }
+
+    const id = crypto.randomUUID();
+    const created: GraphNode = {
+      id,
+      type: 'task',
+      title: copied.title,
+      description: copied.description,
+      x,
+      y,
+      plannedStart: null,
+      plannedEnd: null,
+      assigneeId: copied.assigneeId,
+      estimateValue: copied.estimateValue,
+      estimateUnit: copied.estimateUnit,
+      status: copied.status,
+      progress: null,
+      width: copied.width,
+      height: copied.height,
+    };
+    extra.current.set(id, created);
+    if (copied.status !== 'not_started') copiedStatus.current.set(id, copied.status);
+
+    const nextNodes = nodesRef.current.map((item) => ({ ...item, selected: false }));
+    nextNodes.push({
+      id,
+      type: 'task',
+      selected: true,
+      position: { x, y },
+      ...nodeBox(created.width, created.height),
+      data: {
+        title: created.title,
+        type: 'task',
+        role: created.description,
+        assigneeName: created.assigneeId ? userMap.get(created.assigneeId) : undefined,
+        estimateLabel: formatEstimate(created.estimateValue, created.estimateUnit),
+        status: created.status,
+        progress: null,
+        onResize: (width: number, height: number) => resizeLive.current(id, width, height),
+        onResizeEnd: () => commitResize.current(),
+      },
+    });
+
+    const nextClip = { ...copied, pasted: index };
+    clipRef.current = nextClip;
+    nodesRef.current = nextNodes;
+    ignoreClearUntil.current = Date.now() + 400;
+    selectedRef.current = id;
+    setClip(nextClip);
+    setNodes(nextNodes);
+    setSelected(id);
+    setError('');
+    scheduleSave();
+    return true;
+  }
+
+  const copyRef = useRef(copyTask);
+  const pasteRef = useRef(pasteTask);
+  copyRef.current = copyTask;
+  pasteRef.current = pasteTask;
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        target.closest('input, textarea, select, [contenteditable="true"]')
+      ) {
+        return;
+      }
+      if (event.repeat || event.altKey || !(event.ctrlKey || event.metaKey)) return;
+      const key = event.key.toLowerCase();
+      if (key === 'c' && copyRef.current()) event.preventDefault();
+      if (key === 'v' && pasteRef.current()) event.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const selectedNode = selected ? extra.current.get(selected) : undefined;
 
@@ -434,6 +638,7 @@ function CanvasInner() {
               data: {
                 ...node.data,
                 title: next.title,
+                role: next.description,
                 assigneeName: next.assigneeId ? userMap.get(next.assigneeId) : undefined,
                 estimateLabel: formatEstimate(next.estimateValue, next.estimateUnit),
                 status: next.status,
@@ -520,6 +725,12 @@ function CanvasInner() {
         <div className="canvas-main">
           <div className="toolbar">
             <button className="btn" onClick={addTask}>+ Задача</button>
+            <button className="btn secondary" onClick={copyTask} disabled={!selectedNode || selectedNode.type !== 'task'}>
+              Копировать
+            </button>
+            <button className="btn secondary" onClick={pasteTask} disabled={!clip}>
+              Вставить
+            </button>
             <button className="btn secondary" onClick={() => void persist(editSeq.current)}>
               Сохранить
             </button>
@@ -561,12 +772,14 @@ function CanvasInner() {
               nav(`/goals/${goalId}/nodes/${node.id}/board`);
             }}
             nodeTypes={nodeTypes}
+            connectionLineStyle={{ stroke: '#16a34a', strokeWidth: 2 }}
+            connectionRadius={28}
             fitView
             snapToGrid
-            snapGrid={[DAY, 20]}
+            snapGrid={[DAY, 140]}
             deleteKeyCode={['Delete', 'Backspace']}
           >
-            {goalForm.scaleStart && <DayAxis scaleStart={goalForm.scaleStart} />}
+            <TaskLanes />
             <Background />
             <Controls />
           </ReactFlow>
@@ -611,6 +824,11 @@ function CanvasInner() {
                   <input
                     value={selectedNode.title}
                     onChange={(event) => patchSelected({ title: event.target.value })}
+                  />
+                  <label className="muted">Роль</label>
+                  <input
+                    value={selectedNode.description}
+                    onChange={(event) => patchSelected({ description: event.target.value })}
                   />
                   <label className="muted">Ответственный</label>
                   <select

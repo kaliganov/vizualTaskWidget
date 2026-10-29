@@ -7,6 +7,8 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Max,
+  Min,
   ValidateNested,
 } from 'class-validator';
 
@@ -53,6 +55,18 @@ export class GraphNodeDto {
   @IsOptional()
   @IsString()
   estimateUnit?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(32)
+  @Max(2000)
+  width?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(32)
+  @Max(2000)
+  height?: number | null;
 }
 
 export class GraphEdgeDto {

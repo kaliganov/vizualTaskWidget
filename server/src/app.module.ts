@@ -8,6 +8,7 @@ import { GoalsModule } from './goals/goals.module';
 import { GraphModule } from './graph/graph.module';
 import { KanbanModule } from './kanban/kanban.module';
 import { KanbanSchema1730000000000 } from './migrations/1730000000000-KanbanSchema';
+import { NodeSize1731000000000 } from './migrations/1731000000000-NodeSize';
 import { SeedService } from './seed/seed.service';
 
 @Module({
@@ -24,7 +25,7 @@ import { SeedService } from './seed/seed.service';
         database: config.get('DATABASE_NAME', 'visualtask'),
         autoLoadEntities: true,
         synchronize: true,
-        migrations: [KanbanSchema1730000000000],
+        migrations: [KanbanSchema1730000000000, NodeSize1731000000000],
         migrationsRun: true,
       }),
     }),
