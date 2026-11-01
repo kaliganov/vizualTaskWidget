@@ -7,7 +7,6 @@ export type TaskData = {
   role?: string;
   assigneeName?: string;
   estimateLabel?: string;
-  critical?: boolean;
   status?: string;
   taken?: boolean;
   progress?: number | null;
@@ -74,7 +73,7 @@ export function TaskNode({ data, selected }: NodeProps) {
   }
 
   return (
-    <div className={`task-node ${anchor ? 'anchor' : ''} ${sized ? 'sized' : ''} ${statusClass} ${markClass} ${d.critical ? 'critical' : ''}`}>
+    <div className={`task-node ${anchor ? 'anchor' : ''} ${sized ? 'sized' : ''} ${statusClass} ${markClass}`}>
       {!anchor && d.role ? <div className="role">{d.role}</div> : null}
       <div className="disk">
         {d.title}

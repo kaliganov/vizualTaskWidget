@@ -39,28 +39,4 @@ export class DealTypesService {
     const sort = await this.types.count({ where: { companyId: user.companyId } });
     return this.types.save(this.types.create({ companyId: user.companyId, title: name, sort }));
   }
-
-  async rename(user: AuthUser, id: string, title: string) {
-    const row = await this.find(user.companyId, id);
-    const name = title.trim();
-    if (!name) {
-      throw apiError(HttpStatus.BAD_REQUEST, 'ERROR', 'Укажите вид сделки');
-    }
-    row.title = name;
-    return this.types.save(row);
-  }
-
-  async remove(user: AuthUser, id: string) {
-    const row = await this.find(user.companyId, id);
-    await this.types.remove(row);
-    return { id };
-  }
-
-  private async find(companyId: string, id: string) {
-    const row = await this.types.findOne({ where: { id, companyId } });
-    if (!row) {
-      throw apiError(HttpStatus.NOT_FOUND, 'ERROR', 'Вид сделки не найден');
-    }
-    return row;
-  }
 }

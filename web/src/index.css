@@ -452,7 +452,6 @@ label.muted { color: var(--muted); }
   border-color: #09AFCE;
 }
 .react-flow { font-family: Montserrat, sans-serif; }
-.react-flow__edge.critical-edge .react-flow__edge-path { stroke: #4A4A4A; stroke-width: 1; }
 
 .task-lane {
   position: absolute;

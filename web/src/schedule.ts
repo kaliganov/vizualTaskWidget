@@ -1,9 +1,4 @@
-/** Те же формулы §5 и §6, что на сервере: подпись оценки и дата финиша. */
-
-export function formatEstimate(value: number, unit: string) {
-  const suffix = unit === 'hour' ? 'ч' : unit === 'week' ? 'нед' : 'д';
-  return `${value}${suffix}`;
-}
+/** Подпись оценки и дата финиша. Формулы совпадают с сервером. */
 
 export function formatTrackedEstimate(value: number, unit: string) {
   const hours = unit === 'hour' ? value : unit === 'week' ? value * 7 * 24 : value * 24;
@@ -134,31 +129,4 @@ export function analyzeGraph(
     .toISOString()
     .slice(0, 10);
   return { finishDate, deadlineExceeded: finishDate > deadline };
-}
-
-/** Календарный сдвиг по UTC, как addCalendarDays на сервере. */
-export function addCalendarDays(iso: string, days: number) {
-  const [year, month, day] = iso.split('-').map(Number);
-  if (!year || !month || !day) return iso;
-  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
-}
-
-export function utcToday() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-/** Сколько календарных дней от scaleStart до даты. */
-export function dayIndexFrom(scaleStart: string, iso: string) {
-  const [y1, m1, d1] = scaleStart.split('-').map(Number);
-  const [y2, m2, d2] = iso.split('-').map(Number);
-  return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000);
-}
-
-export function statusText(progress: number | null | undefined, status?: string) {
-  if (progress === null || progress === undefined) {
-    if (status === 'in_progress') return 'В работе';
-    if (status === 'done') return 'Готово';
-    return 'Не начата';
-  }
-  return `${progress}%`;
 }

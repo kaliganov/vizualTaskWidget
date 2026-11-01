@@ -232,16 +232,6 @@ export class GoalsService {
     );
   }
 
-  async removeDocument(user: AuthUser, goalId: string, documentId: string) {
-    await this.find(user, goalId);
-    const row = await this.documents.findOne({
-      where: { id: documentId, goalId, companyId: user.companyId },
-    });
-    if (!row) throw apiError(HttpStatus.NOT_FOUND, 'ERROR', 'Документ не найден');
-    await this.documents.remove(row);
-    return { id: documentId };
-  }
-
   private async find(user: AuthUser, id: string) {
     const goal = await this.goals.findOne({
       where: { id, companyId: user.companyId },
@@ -295,7 +285,6 @@ export class GoalsService {
       graphVersion: goal.graphVersion,
       createdBy: goal.createdBy,
       createdAt: goal.createdAt,
-      startedAt: goal.createdAt,
       currentTaskTitle,
       updatedAt: goal.updatedAt,
       archivedAt: goal.archivedAt,

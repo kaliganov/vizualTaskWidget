@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
 import { GoalsService } from './goals.service';
 
@@ -19,14 +19,5 @@ export class DocumentsController {
     @Body('body') body: string,
   ) {
     return this.goals.addDocument(user, goalId, title ?? '', body ?? '');
-  }
-
-  @Delete(':documentId')
-  remove(
-    @CurrentUser() user: AuthUser,
-    @Param('goalId') goalId: string,
-    @Param('documentId') documentId: string,
-  ) {
-    return this.goals.removeDocument(user, goalId, documentId);
   }
 }

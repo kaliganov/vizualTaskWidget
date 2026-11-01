@@ -15,10 +15,6 @@ export class UsersService {
     return this.users.findOne({ where: { email: email.toLowerCase() } });
   }
 
-  findById(id: string) {
-    return this.users.findOne({ where: { id } });
-  }
-
   listByCompany(companyId: string) {
     return this.users.find({
       where: { companyId },

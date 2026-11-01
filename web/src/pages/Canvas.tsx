@@ -52,8 +52,6 @@ type Graph = {
   version: number;
   deadline: string | null;
   deadlineExceeded: boolean;
-  criticalNodeIds: string[];
-  criticalEdgeIds: string[];
   nodes: GraphNode[];
   edges: GraphEdge[];
 };
@@ -272,8 +270,6 @@ function CanvasInner() {
     setVersion(g.version);
     versionRef.current = g.version;
     extra.current = new Map(g.nodes.map((node) => [node.id, node]));
-    const criticalNodes = new Set(g.criticalNodeIds);
-    const criticalEdges = new Set(g.criticalEdgeIds);
     ignoreClearUntil.current = Date.now() + 400;
     setNodes(
       g.nodes.map((node) => ({
@@ -292,7 +288,6 @@ function CanvasInner() {
           role: node.type === 'goal_anchor' ? '' : node.description,
           estimateLabel:
             node.type === 'goal_anchor' ? '' : formatTrackedEstimate(node.estimateValue, node.estimateUnit),
-          critical: node.type !== 'goal_anchor' && criticalNodes.has(node.id),
           status: node.status,
           taken: Boolean(node.takenAt),
           progress: node.progress,
@@ -314,7 +309,6 @@ function CanvasInner() {
           source: edge.sourceNodeId,
           target: edge.targetNodeId,
           label,
-          className: criticalEdges.has(edge.id) ? 'critical-edge' : undefined,
           style: { stroke: '#4A4A4A', strokeWidth: 1 },
         };
       }),

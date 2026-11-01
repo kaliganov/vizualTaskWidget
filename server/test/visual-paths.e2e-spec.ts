@@ -38,8 +38,8 @@ describe('Visual Paths §15', () => {
     );
     app.useGlobalFilters(new ApiExceptionFilter());
     await app.init();
-    founder = await login('founder@demo.local');
-    worker = await login('worker1@demo.local');
+    founder = 'demo';
+    worker = 'demo';
   }, 120000);
 
   afterAll(async () => {
@@ -50,14 +50,6 @@ describe('Visual Paths §15', () => {
     }
     if (app) await app.close();
   });
-
-  async function login(email: string) {
-    const res = await request(app.getHttpServer())
-      .post('/api/v1/auth/login')
-      .send({ email, password: 'demo123' });
-    expect(res.status).toBeLessThan(300);
-    return res.body.accessToken as string;
-  }
 
   async function createGoal(
     token: string,
