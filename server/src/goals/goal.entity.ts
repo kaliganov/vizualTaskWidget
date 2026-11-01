@@ -22,6 +22,27 @@ export class Goal {
   @Column({ type: 'text', default: '' })
   description: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  applicationNumber: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  dealTypeId: string | null;
+
+  @Column({ type: 'varchar', default: '' })
+  customerName: string;
+
+  @Column({ type: 'varchar', default: '' })
+  contractName: string;
+
+  @Column({ type: 'varchar', default: '' })
+  objectName: string;
+
+  @Column({ type: 'varchar', default: '' })
+  objectAddress: string;
+
+  @Column({ type: 'text', default: '' })
+  orderNotes: string;
+
   @Column({ type: 'date', nullable: true })
   deadline: string | null;
 

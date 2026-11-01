@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Макеты окна задачи</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #F3F4F6;
+      color: #303B4A;
+      font-family: Montserrat, Segoe UI, sans-serif;
+      font-size: 13px;
+    }
+    h1 {
+      margin: 0;
+      padding: 20px 24px 0;
+      font-size: 16px;
+      font-weight: 700;
+    }
+    p.lead {
+      margin: 6px 24px 0;
+      color: #5D6F83;
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(220px, 1fr));
+      gap: 16px;
+      padding: 20px 24px 32px;
+    }
+    figure { margin: 0; }
+    figcaption {
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+    .win {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 4px 24px rgba(51, 51, 51, 0.08);
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+      min-height: 280px;
+    }
+    .b {
+      border-radius: 4px;
+      padding: 8px 10px;
+      background: #EEF1F4;
+      color: #303B4A;
+    }
+    .b.title { font-weight: 700; background: #E4E8ED; }
+    .b.status { color: #5D6F83; }
+    .b.details { color: #5D6F83; min-height: 72px; }
+    .b.action {
+      background: #087B91;
+      color: #fff;
+      font-weight: 700;
+      text-align: center;
+    }
+    .bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 120px;
+      gap: 8px;
+      align-items: stretch;
+    }
+    .split .action {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .group {
+      display: grid;
+      gap: 6px;
+      padding-top: 8px;
+      border-top: 1px solid #E4E8ED;
+    }
+    .group:first-child { border-top: 0; padding-top: 0; }
+    .group h2 {
+      margin: 0;
+      font-size: 11px;
+      font-weight: 700;
+      color: #5D6F83;
+    }
+    .tiny { font-size: 12px; padding: 6px 8px; }
+    .action.big { min-height: 64px; display: flex; align-items: center; justify-content: center; }
+    .details.quiet { min-height: 56px; background: #F7F8F9; }
+  </style>
+</head>
+<body>
+  <h1>Макеты нижнего окна</h1>
+  <p class="lead">Только структура. Одинаковые части: название, статус, детали, кнопка.</p>
+  <div class="board">
+    <figure>
+      <figcaption>1. Столбик</figcaption>
+      <div class="win">
+        <div class="b title">Название</div>
+        <div class="b status">Статус</div>
+        <div class="b details">Детали</div>
+        <div class="b action">Кнопка</div>
+      </div>
+    </figure>
+    <figure>
+      <figcaption>2. Полоса</figcaption>
+      <div class="win">
+        <div class="bar">
+          <div class="b title" style="flex:1">Название</div>
+          <div class="b status">Статус</div>
+        </div>
+        <div class="split">
+          <div class="b details">Детали</div>
+          <div class="b action">Кнопка</div>
+        </div>
+      </div>
+    </figure>
+    <figure>
+      <figcaption>3. Сначала дело</figcaption>
+      <div class="win">
+        <div class="bar">
+          <div class="b title tiny" style="flex:1">Название</div>
+          <div class="b status tiny">Статус</div>
+        </div>
+        <div class="b action big">Кнопка</div>
+        <div class="b details quiet">Детали</div>
+      </div>
+    </figure>
+    <figure>
+      <figcaption>4. Три блока</figcaption>
+      <div class="win">
+        <div class="group">
+          <h2>Задача</h2>
+          <div class="b title">Название</div>
+        </div>
+        <div class="group">
+          <h2>Состояние</h2>
+          <div class="b status">Статус</div>
+          <div class="b details">Детали</div>
+        </div>
+        <div class="group">
+          <h2>Действие</h2>
+          <div class="b action">Кнопка</div>
+        </div>
+      </div>
+    </figure>
+  </div>
+</body>
+</html>

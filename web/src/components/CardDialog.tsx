@@ -70,19 +70,27 @@ const FIELD_LABEL: Record<string, string> = {
 function stamp(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toISOString().slice(0, 16).replace('T', ' ');
+  return date.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 export function CardDialog({
   cardId,
   users,
   me,
+  admin,
   onClose,
   onChanged,
 }: {
   cardId: string;
   users: User[];
   me: string;
+  admin: boolean;
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -95,6 +103,8 @@ export function CardDialog({
   const [minutes, setMinutes] = useState(30);
   const [note, setNote] = useState('');
   const [checkText, setCheckText] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
 
   async function load() {
     const [detail, events] = await Promise.all([
@@ -141,6 +151,19 @@ export function CardDialog({
     );
   }
 
+  async function removeCard() {
+    if (!cardRef.current) return;
+    if (!window.confirm(`Удалить «${cardRef.current.title}»?`)) return;
+    setError('');
+    try {
+      await api(`/visual-paths/cards/${cardId}`, { method: 'DELETE' });
+      onChanged();
+      onClose();
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
+
   function saveChecklist(items: ChecklistItem[]) {
     void run(() =>
       api(`/visual-paths/cards/${cardId}/checklist`, {
@@ -158,7 +181,7 @@ export function CardDialog({
 
   if (!card) {
     return (
-      <div className="dialog-back">
+      <div className="dialog-back card-back">
         <div className="dialog card">
           {error ? <div className="error">{error}</div> : <p>Загрузка…</p>}
           <button className="btn secondary" onClick={onClose}>Закрыть</button>
@@ -168,58 +191,32 @@ export function CardDialog({
   }
 
   return (
-    <div className="dialog-back" onMouseDown={onClose}>
-      <div className="dialog card" onMouseDown={(event) => event.stopPropagation()}>
+    <div className="dialog-back card-back" onMouseDown={onClose}>
+      <div className="dialog card card-sheet" onMouseDown={(event) => event.stopPropagation()}>
         <div className="dialog-head">
-          <strong>Карточка</strong>
-          <button className="btn ghost" onClick={onClose}>Закрыть</button>
+          <input
+            className="card-title-input"
+            aria-label="Название"
+            value={card.title}
+            onChange={(event) => setCard({ ...card, title: event.target.value })}
+            onBlur={(event) => saveFields({ title: event.target.value })}
+          />
+          <div className="row">
+            {admin ? (
+              <button className="btn danger" type="button" onClick={() => void removeCard()}>Удалить</button>
+            ) : null}
+            <button className="btn ghost" type="button" onClick={onClose}>Закрыть</button>
+          </div>
         </div>
         {error && <div className="error">{error}</div>}
-        <label className="muted">Название</label>
-        <input
-          value={card.title}
-          onChange={(event) => setCard({ ...card, title: event.target.value })}
-          onBlur={(event) => saveFields({ title: event.target.value })}
-        />
+        <div className="card-layout">
+        <div className="card-main">
         <label className="muted">Описание</label>
         <textarea
           value={card.description}
           onChange={(event) => setCard({ ...card, description: event.target.value })}
           onBlur={(event) => saveFields({ description: event.target.value })}
         />
-        <label className="muted">Приоритет</label>
-        <select
-          value={card.priority}
-          onChange={(event) => saveFields({ priority: event.target.value })}
-        >
-          {PRIORITY.map((item) => (
-            <option key={item.value} value={item.value}>{item.label}</option>
-          ))}
-        </select>
-        <label className="muted">Срок</label>
-        <input
-          type="date"
-          value={card.dueDate ?? ''}
-          onChange={(event) => saveFields({ dueDate: event.target.value || null })}
-        />
-        <label className="muted">Ответственные</label>
-        <div className="checks">
-          {users.map((item) => (
-            <label key={item.id}>
-              <input
-                type="checkbox"
-                checked={card.assigneeIds.includes(item.id)}
-                onChange={(event) => {
-                  const assigneeIds = event.target.checked
-                    ? [...card.assigneeIds, item.id]
-                    : card.assigneeIds.filter((id) => id !== item.id);
-                  saveFields({ assigneeIds });
-                }}
-              />
-              {item.name}
-            </label>
-          ))}
-        </div>
         <strong>Чек-лист</strong>
         {card.checklist.map((item, index) => (
           <label key={item.id ?? index} className="check-row">
@@ -243,8 +240,11 @@ export function CardDialog({
             </button>
           </label>
         ))}
+        <label className="muted" htmlFor="check-item">Новый пункт</label>
         <div className="row">
           <input
+            id="check-item"
+            name="checkItem"
             value={checkText}
             placeholder="Новый пункт"
             onChange={(event) => setCheckText(event.target.value)}
@@ -266,21 +266,42 @@ export function CardDialog({
         {card.comments.map((item) => (
           <div key={item.id} className="comment">
             <div className="muted">{item.authorName} · {stamp(item.createdAt)}</div>
-            <div>{item.text}</div>
-            {item.authorId === me && (
+            {editingId === item.id ? (
+              <div className="row">
+                <input
+                  aria-label="Текст комментария"
+                  value={editingText}
+                  onChange={(event) => setEditingText(event.target.value)}
+                />
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => {
+                    const text = editingText.trim();
+                    if (!text) return;
+                    setEditingId(null);
+                    void run(() =>
+                      api(`/visual-paths/cards/${cardId}/comments/${item.id}`, {
+                        method: 'PATCH',
+                        body: JSON.stringify({ text }),
+                      }),
+                    );
+                  }}
+                >
+                  Сохранить
+                </button>
+              </div>
+            ) : (
+              <div>{item.text}</div>
+            )}
+            {item.authorId === me && editingId !== item.id && (
               <div className="row">
                 <button
                   className="btn ghost"
                   type="button"
                   onClick={() => {
-                    const text = window.prompt('Комментарий', item.text);
-                    if (!text?.trim()) return;
-                    void run(() =>
-                      api(`/visual-paths/cards/${cardId}/comments/${item.id}`, {
-                        method: 'PATCH',
-                        body: JSON.stringify({ text: text.trim() }),
-                      }),
-                    );
+                    setEditingId(item.id);
+                    setEditingText(item.text);
                   }}
                 >
                   Изменить
@@ -300,8 +321,11 @@ export function CardDialog({
             )}
           </div>
         ))}
+        <label className="muted" htmlFor="card-comment">Комментарий</label>
         <div className="row">
           <input
+            id="card-comment"
+            name="comment"
             value={comment}
             placeholder="Комментарий"
             onChange={(event) => setComment(event.target.value)}
@@ -324,20 +348,51 @@ export function CardDialog({
             Отправить
           </button>
         </div>
+        </div>
+        <aside className="card-side">
+        <label className="muted">Приоритет</label>
+        <select
+          value={card.priority}
+          onChange={(event) => saveFields({ priority: event.target.value })}
+        >
+          {PRIORITY.map((item) => (
+            <option key={item.value} value={item.value}>{item.label}</option>
+          ))}
+        </select>
+        <label className="muted">Срок</label>
+        <input
+          type="date"
+          value={card.dueDate ?? ''}
+          onChange={(event) => saveFields({ dueDate: event.target.value || null })}
+        />
+        <label className="muted" htmlFor="card-assignee">Ответственные</label>
+        <select
+          id="card-assignee"
+          value={card.assigneeIds[0] ?? ''}
+          onChange={(event) => saveFields({ assigneeIds: event.target.value ? [event.target.value] : [] })}
+        >
+          <option value="">не назначен</option>
+          {users.map((item) => (
+            <option key={item.id} value={item.id}>{item.name}</option>
+          ))}
+        </select>
         <strong>Время · {card.minutes} мин</strong>
         {card.timeEntries.map((entry) => (
           <div key={entry.id} className="muted">
             {entry.userName}: {entry.minutes} мин{entry.note ? ` — ${entry.note}` : ''}
           </div>
         ))}
-        <div className="row">
+        <div className="time-form">
+          <label className="muted" htmlFor="time-minutes">Минуты</label>
           <input
+            id="time-minutes"
             type="number"
             min={1}
             value={minutes}
             onChange={(event) => setMinutes(Number(event.target.value))}
           />
-          <input value={note} placeholder="Заметка" onChange={(event) => setNote(event.target.value)} />
+          <label className="muted" htmlFor="time-note">Заметка</label>
+          <input id="time-note" name="note" value={note} placeholder="Заметка" onChange={(event) => setNote(event.target.value)} />
           <button
             className="btn secondary"
             type="button"
@@ -370,7 +425,10 @@ export function CardDialog({
             Старт таймера
           </button>
         )}
-        <strong>История</strong>
+        </aside>
+        </div>
+        <details className="card-history">
+        <summary>История</summary>
         {history.map((event) => (
           <div key={event.id} className="muted">
             {stamp(event.createdAt)} · {event.authorName} · {EVENT_LABEL[event.type] ?? event.type}
@@ -381,6 +439,7 @@ export function CardDialog({
           </div>
         ))}
         {history.length === 0 && <p className="muted">Пока пусто</p>}
+        </details>
       </div>
     </div>
   );

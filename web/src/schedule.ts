@@ -5,6 +5,15 @@ export function formatEstimate(value: number, unit: string) {
   return `${value}${suffix}`;
 }
 
+export function formatTrackedEstimate(value: number, unit: string) {
+  const hours = unit === 'hour' ? value : unit === 'week' ? value * 7 * 24 : value * 24;
+  const whole = Math.max(0, Math.round(Number(hours) || 0));
+  if (whole < 24) return `${whole} ч`;
+  const extra = whole % 24;
+  if (extra === 0) return 'один день';
+  return `${extra} ч`;
+}
+
 function toDays(value: number, unit: string) {
   if (unit === 'hour') return value / 8;
   if (unit === 'day') return value;

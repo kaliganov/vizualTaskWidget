@@ -57,10 +57,14 @@ export class GraphNode {
   @Column({ type: 'uuid', nullable: true })
   assigneeId: string | null;
 
+  /** Когда исполнитель взял задачу. Пусто — не взял. */
+  @Column({ type: 'timestamptz', nullable: true })
+  takenAt: Date | null;
+
   @Column({ type: 'float', default: 1 })
   estimateValue: number;
 
-  @Column({ default: 'day' })
+  @Column({ default: 'hour' })
   estimateUnit: DurationUnit;
 
   /** Пусто — размер по умолчанию, узел не перерисовывается. */

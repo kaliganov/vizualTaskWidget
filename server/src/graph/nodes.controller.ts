@@ -1,11 +1,9 @@
-import { Body, Controller, Param, Patch, UseGuards } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
+import { Body, Controller, Param, Patch } from '@nestjs/common';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
 import { GraphService } from './graph.service';
-import { ManualStatusDto } from './graph.dto';
+import { ManualStatusDto, TakenDto } from './graph.dto';
 
 @Controller('visual-paths/goals/:goalId/nodes')
-@UseGuards(AuthGuard('jwt'))
 export class NodesController {
   constructor(private readonly graph: GraphService) {}
 
@@ -17,5 +15,15 @@ export class NodesController {
     @Body() dto: ManualStatusDto,
   ) {
     return this.graph.setManualStatus(user, goalId, nodeId, dto.status);
+  }
+
+  @Patch(':nodeId/taken')
+  taken(
+    @CurrentUser() user: AuthUser,
+    @Param('goalId') goalId: string,
+    @Param('nodeId') nodeId: string,
+    @Body() dto: TakenDto,
+  ) {
+    return this.graph.setTaken(user, goalId, nodeId, dto.taken);
   }
 }

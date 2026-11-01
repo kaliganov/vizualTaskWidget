@@ -7,9 +7,7 @@ import {
   Patch,
   Post,
   Put,
-  UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator';
 import {
   CommentDto,
@@ -22,7 +20,6 @@ import {
 import { KanbanService } from './kanban.service';
 
 @Controller('visual-paths')
-@UseGuards(AuthGuard('jwt'))
 export class KanbanController {
   constructor(private readonly kanban: KanbanService) {}
 

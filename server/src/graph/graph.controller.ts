@@ -1,12 +1,10 @@
-import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
+import { Body, Controller, Get, Param, Put } from '@nestjs/common';
 import { GraphService } from './graph.service';
 import { PutGraphDto } from './graph.dto';
 import { CurrentUser } from '../common/current-user.decorator';
 import type { AuthUser } from '../common/current-user.decorator';
 
 @Controller('visual-paths/goals/:goalId/graph')
-@UseGuards(AuthGuard('jwt'))
 export class GraphController {
   constructor(private readonly graph: GraphService) {}
 

@@ -12,6 +12,26 @@ export function formatEstimate(value: number, unit: string): string {
   return `${value}${suffix}`;
 }
 
+/** Часы оценки. Сутки для подписи — 24 часа. */
+export function hoursOf(value: number, unit: string): number {
+  if (unit === 'hour') return value;
+  if (unit === 'week') return value * 7 * 24;
+  return value * 24;
+}
+
+/** До суток — часы. Ровно сутки — «один день». Дальше снова часы после этих суток. */
+export function formatWorkTime(hours: number): string {
+  const whole = Math.max(0, Math.round(Number(hours) || 0));
+  if (whole < 24) return `${whole} ч`;
+  const extra = whole % 24;
+  if (extra === 0) return 'один день';
+  return `${extra} ч`;
+}
+
+export function formatTrackedEstimate(value: number, unit: string): string {
+  return formatWorkTime(hoursOf(value, unit));
+}
+
 export function utcToday(now = new Date()): string {
   return now.toISOString().slice(0, 10);
 }

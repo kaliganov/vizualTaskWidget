@@ -17,11 +17,11 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { api, errorMessage } from '../api';
-import { useAuth } from '../auth';
 import { TaskNode, type TaskData } from '../components/TaskNode';
-import { analyzeGraph, formatEstimate } from '../schedule';
+import { analyzeGraph, formatTrackedEstimate } from '../schedule';
+import { buildChain, currentOf, mine, statusLabel } from '../process-view';
 
-type User = { id: string; name: string };
+type User = { id: string; name: string; email: string; position: string };
 type GraphNode = {
   id: string;
   type: string;
@@ -34,6 +34,7 @@ type GraphNode = {
   assigneeId: string | null;
   estimateValue: number;
   estimateUnit: string;
+  takenAt: string | null;
   status: string;
   progress: number | null;
   width: number | null;
@@ -49,7 +50,6 @@ type GraphEdge = {
 };
 type Graph = {
   version: number;
-  scaleStart: string;
   deadline: string | null;
   deadlineExceeded: boolean;
   criticalNodeIds: string[];
@@ -61,8 +61,39 @@ type Goal = {
   title: string;
   description: string;
   deadline: string | null;
-  scaleStart: string | null;
+  applicationNumber: string | null;
+  dealTypeTitle: string;
+  customerName: string;
+  contractName: string;
+  objectName: string;
+  objectAddress: string;
+  orderNotes: string;
 };
+type OrderDoc = { id: string; title: string; body: string };
+type DocMark = 'collected' | 'waiting' | 'missing';
+
+function documentRows(docs: OrderDoc[]) {
+  const rows: { id: string; title: string; status: DocMark }[] = [];
+  for (const doc of docs) {
+    const lines = doc.body.split('\n').map((line) => line.trim()).filter(Boolean);
+    if (!lines.length) {
+      rows.push({ id: doc.id, title: doc.title, status: 'waiting' });
+      continue;
+    }
+    lines.forEach((line, index) => {
+      const split = line.indexOf(':');
+      const title = (split >= 0 ? line.slice(0, split) : line).trim();
+      const value = split >= 0 ? line.slice(split + 1).trim() : '';
+      rows.push({
+        id: `${doc.id}-${index}`,
+        title: title || doc.title,
+        status: value ? 'collected' : 'missing',
+      });
+    });
+  }
+  if (!rows.length) rows.push({ id: 'empty', title: 'Документы пока не указаны', status: 'waiting' });
+  return rows;
+}
 
 const nodeTypes = { task: TaskNode };
 const DAY = 48;
@@ -83,6 +114,12 @@ type TaskClip = {
   y: number;
   pasted: number;
 };
+
+function taskRowY(items: { type: string; y: number }[]) {
+  const ys = items.filter((node) => node.type === 'task').map((node) => node.y).sort((a, b) => a - b);
+  if (!ys.length) return 140;
+  return ys[Math.floor(ys.length / 2)];
+}
 
 function nodeBox(width: number | null, height: number | null) {
   if (width == null || height == null) return {};
@@ -165,7 +202,6 @@ function CanvasInner() {
   const { goalId } = useParams();
   const [search] = useSearchParams();
   const focus = search.get('node');
-  const { logout, user } = useAuth();
   const nav = useNavigate();
   const flow = useReactFlow();
   const [goalTitle, setGoalTitle] = useState('Схема');
@@ -173,8 +209,30 @@ function CanvasInner() {
     title: '',
     description: '',
     deadline: '',
-    scaleStart: '',
   });
+  const [order, setOrder] = useState<Goal | null>(null);
+  const [orderOpen, setOrderOpen] = useState(false);
+  const [processOpen, setProcessOpen] = useState(false);
+
+  useEffect(() => {
+    if (!processOpen) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setProcessOpen(false);
+    }
+    function onDown(event: MouseEvent) {
+      const target = event.target;
+      if (target instanceof Element && target.closest('.process-slot')) return;
+      setProcessOpen(false);
+    }
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('mousedown', onDown);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('mousedown', onDown);
+    };
+  }, [processOpen]);
+  const [docs, setDocs] = useState<OrderDoc[]>([]);
+  const [docTitle, setDocTitle] = useState('');
   const [version, setVersion] = useState(1);
   const [users, setUsers] = useState<User[]>([]);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<TaskData>>([]);
@@ -184,6 +242,10 @@ function CanvasInner() {
   const [error, setError] = useState('');
   const [deadlineExceeded, setDeadlineExceeded] = useState(false);
   const [finishDate, setFinishDate] = useState<string | null>(null);
+  const [viewerKey, setViewerKey] = useState(() => sessionStorage.getItem('vp_viewer') || 'admin');
+  const [showAll, setShowAll] = useState(false);
+  const [docMarks, setDocMarks] = useState<Record<string, DocMark>>({});
+  const adminEdit = useRef(true);
   const extra = useRef<Map<string, GraphNode>>(new Map());
   const saveTimer = useRef<number>(0);
   const versionRef = useRef(1);
@@ -218,17 +280,21 @@ function CanvasInner() {
         id: node.id,
         type: 'task',
         selected: node.id === selectedRef.current,
-        position: { x: node.x, y: node.y },
-        ...nodeBox(node.width, node.height),
+        position: { x: node.x, y: node.type === 'goal_anchor' ? taskRowY(g.nodes) : node.y },
+        ...nodeBox(
+          node.type === 'goal_anchor' ? null : node.width,
+          node.type === 'goal_anchor' ? null : node.height,
+        ),
         data: {
           title: node.title,
           type: node.type,
           assigneeName: node.assigneeId ? names.get(node.assigneeId) : undefined,
           role: node.type === 'goal_anchor' ? '' : node.description,
           estimateLabel:
-            node.type === 'goal_anchor' ? '' : formatEstimate(node.estimateValue, node.estimateUnit),
+            node.type === 'goal_anchor' ? '' : formatTrackedEstimate(node.estimateValue, node.estimateUnit),
           critical: node.type !== 'goal_anchor' && criticalNodes.has(node.id),
           status: node.status,
+          taken: Boolean(node.takenAt),
           progress: node.progress,
           dates: datesOf(node),
           onResize: (width: number, height: number) => resizeLive.current(node.id, width, height),
@@ -236,17 +302,22 @@ function CanvasInner() {
         },
       })),
     );
+    const estimateById = new Map(g.nodes.map((node) => [node.id, node]));
     setEdges(
-      g.edges.map((edge) => ({
-        id: edge.id,
-        source: edge.sourceNodeId,
-        target: edge.targetNodeId,
-        label: edge.label === '0д' || edge.label === '0ч' || edge.label === '0нед' ? undefined : edge.label,
-        className: criticalEdges.has(edge.id) ? 'critical-edge' : undefined,
-        style: criticalEdges.has(edge.id)
-          ? { stroke: '#d97706', strokeWidth: 2.5 }
-          : { stroke: '#16a34a', strokeWidth: 1.5 },
-      })),
+      g.edges.map((edge) => {
+        const source = estimateById.get(edge.sourceNodeId);
+        const label = source
+          ? formatTrackedEstimate(source.estimateValue, source.estimateUnit)
+          : edge.label;
+        return {
+          id: edge.id,
+          source: edge.sourceNodeId,
+          target: edge.targetNodeId,
+          label,
+          className: criticalEdges.has(edge.id) ? 'critical-edge' : undefined,
+          style: { stroke: '#4A4A4A', strokeWidth: 1 },
+        };
+      }),
     );
     const analyzed = analyzeGraph(
       g.nodes.map((node) => ({
@@ -268,10 +339,11 @@ function CanvasInner() {
   }, [setEdges, setNodes]);
 
   const load = useCallback(async (keepMessage = false) => {
-    const [g, goal, list] = await Promise.all([
+    const [g, goal, list, papers] = await Promise.all([
       api<Graph>(`/visual-paths/goals/${goalId}/graph`),
       api<Goal>(`/visual-paths/goals/${goalId}`),
       api<User[]>('/users'),
+      api<OrderDoc[]>(`/visual-paths/goals/${goalId}/documents`).catch(() => []),
     ]);
     usersRef.current = list;
     setUsers(list);
@@ -280,8 +352,9 @@ function CanvasInner() {
       title: goal.title,
       description: goal.description ?? '',
       deadline: goal.deadline ?? '',
-      scaleStart: goal.scaleStart ?? '',
     });
+    setOrder(goal);
+    setDocs(papers);
     applyGraph(g, list);
     window.setTimeout(() => {
       flow.fitView({ padding: 0.2, duration: 200 });
@@ -293,8 +366,33 @@ function CanvasInner() {
   }, [applyGraph, flow, goalId]);
 
   useEffect(() => {
-    load().catch((err) => setError(errorMessage(err)));
+    let cancelled = false;
+    async function start() {
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        try {
+          await load();
+          return;
+        } catch (err) {
+          if (cancelled) return;
+          const message = errorMessage(err);
+          if (attempt === 7) {
+            setError(message);
+            setHint(message);
+            return;
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, 500));
+        }
+      }
+    }
+    void start();
+    return () => {
+      cancelled = true;
+    };
   }, [load]);
+
+  useEffect(() => {
+    setShowAll(false);
+  }, [viewerKey]);
 
   useEffect(() => {
     if (focused.current || !focus || !nodes.some((node) => node.id === focus)) return;
@@ -318,7 +416,7 @@ function CanvasInner() {
           y: node.position.y,
           assigneeId: prev?.assigneeId ?? null,
           estimateValue: prev?.estimateValue ?? 1,
-          estimateUnit: prev?.estimateUnit ?? 'day',
+          estimateUnit: prev?.estimateUnit ?? 'hour',
           width: prev?.width ?? null,
           height: prev?.height ?? null,
         };
@@ -387,6 +485,7 @@ function CanvasInner() {
   }
 
   function scheduleSave() {
+    if (!adminEdit.current) return;
     const seq = ++editSeq.current;
     window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => {
@@ -408,6 +507,7 @@ function CanvasInner() {
 
   const onConnect = useCallback(
     (connection: Connection) => {
+      if (!adminEdit.current) return;
       if (!connection.source || !connection.target) return;
       if (edges.some((edge) => edge.source === connection.source && edge.target === connection.target)) {
         setError('Такая стрелка уже есть');
@@ -418,8 +518,8 @@ function CanvasInner() {
         {
           ...connection,
           id: crypto.randomUUID(),
-          label: formatEstimate(source?.estimateValue ?? 1, source?.estimateUnit ?? 'day'),
-          style: { stroke: '#16a34a', strokeWidth: 1.5 },
+          label: formatTrackedEstimate(source?.estimateValue ?? 1, source?.estimateUnit ?? 'hour'),
+          style: { stroke: '#4A4A4A', strokeWidth: 1 },
         },
         edges,
       );
@@ -465,7 +565,8 @@ function CanvasInner() {
       plannedEnd: null,
       assigneeId: null,
       estimateValue: 1,
-      estimateUnit: 'day',
+      estimateUnit: 'hour',
+      takenAt: null,
       status: 'not_started',
       progress: null,
       width: null,
@@ -482,8 +583,9 @@ function CanvasInner() {
       data: {
         title: created.title,
         type: 'task',
-        estimateLabel: '1д',
+        estimateLabel: '1 ч',
         status: 'not_started',
+        taken: false,
         progress: null,
         onResize: (width: number, height: number) => resizeLive.current(id, width, height),
         onResizeEnd: () => commitResize.current(),
@@ -557,6 +659,7 @@ function CanvasInner() {
       assigneeId: copied.assigneeId,
       estimateValue: copied.estimateValue,
       estimateUnit: copied.estimateUnit,
+      takenAt: null,
       status: copied.status,
       progress: null,
       width: copied.width,
@@ -577,8 +680,9 @@ function CanvasInner() {
         type: 'task',
         role: created.description,
         assigneeName: created.assigneeId ? userMap.get(created.assigneeId) : undefined,
-        estimateLabel: formatEstimate(created.estimateValue, created.estimateUnit),
+        estimateLabel: formatTrackedEstimate(created.estimateValue, created.estimateUnit),
         status: created.status,
+        taken: false,
         progress: null,
         onResize: (width: number, height: number) => resizeLive.current(id, width, height),
         onResizeEnd: () => commitResize.current(),
@@ -640,7 +744,7 @@ function CanvasInner() {
                 title: next.title,
                 role: next.description,
                 assigneeName: next.assigneeId ? userMap.get(next.assigneeId) : undefined,
-                estimateLabel: formatEstimate(next.estimateValue, next.estimateUnit),
+                estimateLabel: formatTrackedEstimate(next.estimateValue, next.estimateUnit),
                 status: next.status,
                 progress: next.progress,
               },
@@ -648,12 +752,31 @@ function CanvasInner() {
       ),
     );
     if (patch.estimateValue != null || patch.estimateUnit) {
-      const label = formatEstimate(next.estimateValue, next.estimateUnit);
+      const label = formatTrackedEstimate(next.estimateValue, next.estimateUnit);
       setEdges((current) =>
         current.map((edge) => (edge.source === selected ? { ...edge, label } : edge)),
       );
     }
     scheduleSave();
+  }
+
+  async function takeTask(id: string, taken: boolean) {
+    try {
+      const saved = await api<{ takenAt: string | null }>(
+        `/visual-paths/goals/${goalId}/nodes/${id}/taken`,
+        { method: 'PATCH', body: JSON.stringify({ taken }) },
+      );
+      const prev = extra.current.get(id);
+      if (prev) extra.current.set(id, { ...prev, takenAt: saved.takenAt });
+      setNodes((current) =>
+        current.map((node) =>
+          node.id === id ? { ...node, data: { ...node.data, taken } } : node,
+        ),
+      );
+      setError('');
+    } catch (err) {
+      setError(errorMessage(err));
+    }
   }
 
   async function changeManualStatus(status: string) {
@@ -700,7 +823,6 @@ function CanvasInner() {
           title: goalForm.title,
           description: goalForm.description,
           deadline: goalForm.deadline || null,
-          scaleStart: goalForm.scaleStart || undefined,
         }),
       });
       await load();
@@ -709,31 +831,233 @@ function CanvasInner() {
     }
   }
 
+  const chain = useMemo(() => {
+    const rows = nodes.map((node) => {
+      const meta = extra.current.get(node.id);
+      return {
+        id: node.id,
+        type: String(node.data.type ?? ''),
+        title: String(node.data.title ?? ''),
+        description: meta?.description ?? '',
+        x: node.position.x,
+        assigneeId: meta?.assigneeId ?? null,
+        status: String(node.data.status ?? 'not_started'),
+        takenAt: node.data.taken ? 'taken' : null,
+      };
+    });
+    return buildChain(rows);
+  }, [nodes]);
+  const viewers = useMemo(() => {
+    const options: { key: string; label: string; person: { id: string; position: string } | null }[] = [
+      { key: 'admin', label: 'Администратор', person: null },
+    ];
+    const roles = new Set(chain.map((task) => task.role).filter(Boolean));
+    for (const person of users) {
+      const admin = /руковод/i.test(person.position) || person.email === 'founder@demo.local';
+      if (admin) continue;
+      options.push({
+        key: person.id,
+        label: `${person.name}${person.position ? ` · ${person.position}` : ''}`,
+        person: { id: person.id, position: person.position },
+      });
+    }
+    for (const role of roles) {
+      const covered = users.some((person) => {
+        const position = person.position.trim().toLowerCase();
+        const name = role.toLowerCase();
+        return position && (name.includes(position) || position.includes(name));
+      });
+      if (covered) continue;
+      options.push({ key: `role:${role}`, label: role, person: { id: '', position: role } });
+    }
+    return options;
+  }, [users, chain]);
+  const viewer = viewers.find((item) => item.key === viewerKey) ?? viewers[0];
+  const isAdmin = !viewer.person;
+  adminEdit.current = isAdmin;
+  const own = isAdmin || !viewer.person ? [] : chain.filter((task) => mine(task, viewer.person!));
+  const ownsSelected = Boolean(selected && own.some((task) => task.id === selected));
+  const showStatusOnly = !isAdmin && ownsSelected && selectedNode?.type === 'task' && selectedNode.progress === null;
+  const current = currentOf(chain);
+  const seeAll = isAdmin || showAll;
+  const visibleNodes = seeAll
+    ? nodes
+    : nodes.filter((node) => node.data.type === 'goal_anchor' || own.some((task) => task.id === node.id));
+  const visibleIds = new Set(visibleNodes.map((node) => node.id));
+  const visibleEdges = seeAll ? edges : edges.filter((edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target));
+
   return (
     <div className="page">
-      <header className="topbar">
-        <div>
+      <header className="topbar slim">
+        <div className="top-cluster">
           <Link to="/goals">← Цели</Link>
-          <strong style={{ marginLeft: 12 }}>{goalTitle}</strong>
+          <strong>{goalTitle}</strong>
+          {order ? (
+            <button className="btn secondary" type="button" onClick={() => setOrderOpen(true)}>
+              Заявка {order.applicationNumber || '—'}
+            </button>
+          ) : null}
+          <div className="tool-slot process-slot">
+            <button className="btn secondary" type="button" onClick={() => setProcessOpen((open) => !open)}>
+              Сейчас: {current ? current.title : chain.length ? 'Процесс завершён' : 'Нет задач'}
+            </button>
+            {processOpen && current ? (
+              <div className="card menu-pop process-pop">
+                <div className="step-sheet">
+                  <strong className="step-title">{current.title}</strong>
+                  <p className="step-status">{statusLabel(current.status)}</p>
+                  <div className="step-details">
+                    <p className="muted">Что сделать</p>
+                    {current.title === 'Сбор документов' ? (
+                      <ul className="doc-step-list">
+                        {documentRows(docs).map((row) => {
+                          const mark = docMarks[row.id] ?? row.status;
+                          return (
+                            <li key={row.id} className="doc-step-row">
+                              <span>{row.title}</span>
+                              <select
+                                aria-label={`Статус: ${row.title}`}
+                                value={mark}
+                                onChange={(event) => setDocMarks((prev) => ({ ...prev, [row.id]: event.target.value as DocMark }))}
+                              >
+                                <option value="collected">Собрано</option>
+                                <option value="waiting">Ожидает</option>
+                                <option value="missing">Не хватает</option>
+                              </select>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : (
+                      <p>{current.role || 'Сделать этот шаг по заявке.'}</p>
+                    )}
+                  </div>
+                  <button className="btn" type="button" onClick={() => void takeTask(current.id, !current.taken)}>
+                    {current.taken ? 'Не взял' : 'Взять в работу'}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
-        <div>
-          <span className="muted">{user?.name} · v{version}</span>{' '}
-          <button className="btn ghost" onClick={logout}>Выйти</button>
+        <div className="process-row">
+          <label className="muted" htmlFor="viewer">Кто смотрит</label>
+          <select
+            id="viewer"
+            value={viewer.key}
+            onChange={(event) => {
+              setViewerKey(event.target.value);
+              sessionStorage.setItem('vp_viewer', event.target.value);
+            }}
+          >
+            {viewers.map((item) => (
+              <option key={item.key} value={item.key}>{item.label}</option>
+            ))}
+          </select>
+          <span className="muted">v{version}</span>
         </div>
       </header>
+      {order && orderOpen ? (
+        <div className="dialog-back" onMouseDown={() => setOrderOpen(false)}>
+          <div className="dialog card order-sheet" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="dialog-head">
+              <strong>Заявка {order.applicationNumber || '—'}</strong>
+              <button className="btn ghost" type="button" onClick={() => setOrderOpen(false)}>Закрыть</button>
+            </div>
+            <section className="order-block">
+              <h3>Откуда</h3>
+              <ul>
+                {[
+                  ['Заказчик', order.customerName],
+                  ['Вид сделки', order.dealTypeTitle],
+                  ['Контракт', order.contractName],
+                ].map(([label, value]) => (
+                  <li key={label}>
+                    <span>{label}</span>
+                    <span>{value || '—'}</span>
+                    <span className={value ? 'order-mark ok' : 'order-mark miss'}>{value ? 'Собрано' : 'Не хватает'}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+            <section className="order-block">
+              <h3>Куда</h3>
+              <ul>
+                {[
+                  ['Объект', order.objectName],
+                  ['Адрес', order.objectAddress],
+                ].map(([label, value]) => (
+                  <li key={label}>
+                    <span>{label}</span>
+                    <span>{value || '—'}</span>
+                    <span className={value ? 'order-mark ok' : 'order-mark miss'}>{value ? 'Собрано' : 'Не хватает'}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+            <section className="order-block">
+              <h3>Документы</h3>
+              <ul>
+                {docs.length === 0 ? (
+                  <li>
+                    <span>Пока нет</span>
+                    <span />
+                    <span className="order-mark wait">Ожидает</span>
+                  </li>
+                ) : docs.map((doc) => (
+                  <li key={doc.id}>
+                    <span>{doc.title}</span>
+                    <span />
+                    <span className={doc.body.trim() ? 'order-mark ok' : 'order-mark wait'}>{doc.body.trim() ? 'Собрано' : 'Ожидает'}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+            <div className="order-foot">
+              <form
+                className="row"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (!docTitle.trim()) return;
+                  void api(`/visual-paths/goals/${goalId}/documents`, {
+                    method: 'POST',
+                    body: JSON.stringify({ title: docTitle.trim(), body: '' }),
+                  }).then(() => {
+                    setDocTitle('');
+                    return load(true);
+                  });
+                }}
+              >
+                <label className="muted" htmlFor="doc-title">Новый документ</label>
+                <input id="doc-title" name="docTitle" value={docTitle} onChange={(event) => setDocTitle(event.target.value)} placeholder="Название документа" />
+                <button className="btn" type="submit">Добавить</button>
+              </form>
+              <p className="muted">{order.orderNotes ? `Примечание: ${order.orderNotes}` : 'Примечание не задано'}</p>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="canvas-wrap">
         <div className="canvas-main">
           <div className="toolbar">
-            <button className="btn" onClick={addTask}>+ Задача</button>
-            <button className="btn secondary" onClick={copyTask} disabled={!selectedNode || selectedNode.type !== 'task'}>
-              Копировать
-            </button>
-            <button className="btn secondary" onClick={pasteTask} disabled={!clip}>
-              Вставить
-            </button>
-            <button className="btn secondary" onClick={() => void persist(editSeq.current)}>
-              Сохранить
-            </button>
+            {isAdmin ? (
+              <>
+                <button className="btn" onClick={addTask}>+ Задача</button>
+                <button className="btn secondary" onClick={copyTask} disabled={!selectedNode || selectedNode.type !== 'task'}>
+                  Копировать
+                </button>
+                <button className="btn secondary" onClick={pasteTask} disabled={!clip}>
+                  Вставить
+                </button>
+                <button className="btn secondary" onClick={() => void persist(editSeq.current)}>
+                  Сохранить
+                </button>
+              </>
+            ) : (
+              <button className="btn secondary" type="button" onClick={() => setShowAll((open) => !open)}>
+                {showAll ? 'Мои задачи' : 'Показать всю схему'}
+              </button>
+            )}
           </div>
           <div className="save-hint">{hint}</div>
           {deadlineExceeded && finishDate && (
@@ -742,15 +1066,33 @@ function CanvasInner() {
             </div>
           )}
           <ReactFlow
-            nodes={nodes}
-            edges={edges}
+            nodes={visibleNodes}
+            edges={visibleEdges}
+            nodesDraggable={isAdmin}
+            nodesConnectable={isAdmin}
             onNodesChange={onNodesChange}
-            onNodeDragStop={() => scheduleSave()}
+            onNodeDragStop={(_, dragged) => {
+              if (dragged.data?.type === 'goal_anchor') {
+                const y = taskRowY(
+                  nodesRef.current.map((node) => ({
+                    type: String(node.data?.type ?? ''),
+                    y: node.position.y,
+                  })),
+                );
+                setNodes((current) =>
+                  current.map((node) =>
+                    node.id === dragged.id ? { ...node, position: { ...node.position, y } } : node,
+                  ),
+                );
+              }
+              scheduleSave();
+            }}
             onEdgesChange={(changes) => {
               onEdgesChange(changes);
               if (changes.some((change) => change.type === 'remove')) scheduleSave();
             }}
             onBeforeDelete={async ({ nodes: selectedNodes }) => {
+              if (!isAdmin) return false;
               if (selectedNodes.some((node) => extra.current.get(node.id)?.type === 'goal_anchor')) {
                 return false;
               }
@@ -772,19 +1114,21 @@ function CanvasInner() {
               nav(`/goals/${goalId}/nodes/${node.id}/board`);
             }}
             nodeTypes={nodeTypes}
-            connectionLineStyle={{ stroke: '#16a34a', strokeWidth: 2 }}
+            connectionLineStyle={{ stroke: '#4A4A4A', strokeWidth: 1 }}
             connectionRadius={28}
             fitView
             snapToGrid
-            snapGrid={[DAY, 140]}
-            deleteKeyCode={['Delete', 'Backspace']}
+            snapGrid={[DAY, 1]}
+            deleteKeyCode={isAdmin ? ['Delete', 'Backspace'] : null}
           >
             <TaskLanes />
             <Background />
             <Controls />
           </ReactFlow>
         </div>
-        <aside className="panel">
+        <aside className="panel" hidden={!selectedNode || (!isAdmin && !showStatusOnly)}>
+          {isAdmin && (
+          <fieldset>
           {selectedNode?.type === 'goal_anchor' ? (
             <>
               <strong>Свойства цели</strong>
@@ -798,12 +1142,6 @@ function CanvasInner() {
               <textarea
                 value={goalForm.description}
                 onChange={(event) => setGoalForm({ ...goalForm, description: event.target.value })}
-              />
-              <label className="muted">Начало шкалы</label>
-              <input
-                type="date"
-                value={goalForm.scaleStart}
-                onChange={(event) => setGoalForm({ ...goalForm, scaleStart: event.target.value })}
               />
               <label className="muted">Дедлайн</label>
               <input
@@ -862,7 +1200,7 @@ function CanvasInner() {
                       ? `${selectedNode.plannedStart}–${selectedNode.plannedEnd}`
                       : 'Даты появятся после сохранения'}
                   </p>
-                  {selectedNode.progress === null && (
+                  {isAdmin && selectedNode.progress === null && (
                     <>
                       <label className="muted">Статус</label>
                       <select
@@ -878,6 +1216,21 @@ function CanvasInner() {
                   <button className="btn danger" onClick={removeSelected}>Удалить задачу</button>
                 </>
               )}
+            </>
+          )}
+          </fieldset>
+          )}
+          {showStatusOnly && selectedNode && (
+            <>
+              <label className="muted">Статус</label>
+              <select
+                value={selectedNode.status}
+                onChange={(event) => void changeManualStatus(event.target.value)}
+              >
+                <option value="not_started">Не начата</option>
+                <option value="in_progress">В работе</option>
+                <option value="done">Готово</option>
+              </select>
             </>
           )}
         </aside>

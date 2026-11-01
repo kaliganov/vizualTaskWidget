@@ -14,7 +14,7 @@ import {
   type NodeStatus,
 } from './graph-node.entity';
 import type { GraphEdgeDto, GraphNodeDto, PutGraphDto } from './graph.dto';
-import { analyzeGraph, asDate, formatEstimate, plannedDates } from './schedule';
+import { analyzeGraph, asDate, formatTrackedEstimate, plannedDates } from './schedule';
 
 const UNITS = new Set(['hour', 'day', 'week']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -189,7 +189,7 @@ export class GraphService {
             targetNodeId: edge.targetNodeId,
             durationValue: source.estimateValue,
             durationUnit: source.estimateUnit as DurationUnit,
-            label: formatEstimate(source.estimateValue, source.estimateUnit),
+            label: formatTrackedEstimate(source.estimateValue, source.estimateUnit),
           });
         }),
       );
@@ -233,6 +233,22 @@ export class GraphService {
     return { status: node.status, progress: null };
   }
 
+  async setTaken(user: AuthUser, goalId: string, nodeId: string, taken: boolean) {
+    const goal = await this.findGoal(user, goalId);
+    const node = await this.nodes.findOne({
+      where: { id: nodeId, goalId: goal.id },
+    });
+    if (!node) {
+      throw apiError(HttpStatus.NOT_FOUND, 'NODE_NOT_FOUND', 'Узел не найден');
+    }
+    if (node.type !== 'task') {
+      throw apiError(HttpStatus.BAD_REQUEST, 'NOT_A_TASK', 'Якорь в работу не берётся');
+    }
+    node.takenAt = taken ? new Date() : null;
+    await this.nodes.save(node);
+    return { takenAt: node.takenAt };
+  }
+
   private async present(goal: Goal) {
     const nodes = await this.nodes.find({ where: { goalId: goal.id } });
     const edges = await this.edges.find({ where: { goalId: goal.id } });
@@ -274,6 +290,7 @@ export class GraphService {
             ? null
             : Number(node.progress),
         assigneeId: node.assigneeId,
+        takenAt: node.takenAt,
         estimateValue: Number(node.estimateValue),
         estimateUnit: node.estimateUnit,
         width: storedSize(node.width),
@@ -444,7 +461,7 @@ export class GraphService {
     if (node.type === 'goal_anchor') return { value: 0, unit: 'day' };
     return {
       value: Number(node.estimateValue ?? existing?.estimateValue ?? 1),
-      unit: node.estimateUnit ?? existing?.estimateUnit ?? 'day',
+      unit: node.estimateUnit ?? existing?.estimateUnit ?? 'hour',
     };
   }
 

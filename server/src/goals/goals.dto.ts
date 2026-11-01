@@ -30,6 +30,39 @@ export class CreateGoalDto {
   @IsOptional()
   @IsString()
   companyId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  applicationNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  dealTypeId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  customerName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  contractName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  objectName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  objectAddress?: string;
+
+  @IsOptional()
+  @IsString()
+  orderNotes?: string;
 }
 
 export class UpdateGoalDto {
@@ -60,4 +93,37 @@ export class UpdateGoalDto {
   @IsOptional()
   @IsString()
   companyId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  applicationNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  dealTypeId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  customerName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  contractName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  objectName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  objectAddress?: string;
+
+  @IsOptional()
+  @IsString()
+  orderNotes?: string;
 }

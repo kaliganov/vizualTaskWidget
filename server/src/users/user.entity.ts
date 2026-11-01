@@ -19,6 +19,9 @@ export class User {
   @Column()
   name: string;
 
+  @Column({ default: '' })
+  position: string;
+
   @Column()
   companyId: string;
 

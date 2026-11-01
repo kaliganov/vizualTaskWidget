@@ -7,22 +7,25 @@ import {
   Patch,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import { GoalsService } from './goals.service';
 import { CreateGoalDto, UpdateGoalDto } from './goals.dto';
 import { CurrentUser } from '../common/current-user.decorator';
 import type { AuthUser } from '../common/current-user.decorator';
 
 @Controller('visual-paths/goals')
-@UseGuards(AuthGuard('jwt'))
 export class GoalsController {
   constructor(private readonly goals: GoalsService) {}
 
   @Get()
-  list(@CurrentUser() user: AuthUser, @Query('q') q?: string) {
-    return this.goals.list(user, q);
+  list(
+    @CurrentUser() user: AuthUser,
+    @Query('q') q?: string,
+    @Query('number') number?: string,
+    @Query('status') status?: string,
+    @Query('position') position?: string,
+  ) {
+    return this.goals.list(user, q, number, status, position);
   }
 
   @Post()

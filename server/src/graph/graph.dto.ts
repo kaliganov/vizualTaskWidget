@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsNumber,
@@ -109,6 +110,11 @@ export class PutGraphDto {
   @ValidateNested({ each: true })
   @Type(() => GraphEdgeDto)
   edges: GraphEdgeDto[];
+}
+
+export class TakenDto {
+  @IsBoolean()
+  taken: boolean;
 }
 
 export class ManualStatusDto {

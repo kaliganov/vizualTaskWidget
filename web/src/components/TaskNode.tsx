@@ -9,6 +9,7 @@ export type TaskData = {
   estimateLabel?: string;
   critical?: boolean;
   status?: string;
+  taken?: boolean;
   progress?: number | null;
   dates?: string;
   onResize?: (width: number, height: number) => void;
@@ -29,6 +30,13 @@ export function TaskNode({ data, selected }: NodeProps) {
     return node?.width != null && node?.height != null;
   });
   const statusClass = anchor ? '' : `status-${d.status || 'not_started'}`;
+  const markClass = anchor
+    ? ''
+    : d.status === 'done'
+      ? 'mark-done'
+      : d.status === 'in_progress' || d.taken
+        ? 'mark-taken'
+        : 'mark-open';
 
   function startResize(event: PointerEvent<HTMLButtonElement>) {
     event.stopPropagation();
@@ -36,8 +44,6 @@ export function TaskNode({ data, selected }: NodeProps) {
     const host = event.currentTarget.closest('.react-flow__node');
     const disk = host?.querySelector('.disk');
     if (!(host instanceof HTMLElement) || !(disk instanceof HTMLElement) || !d.onResize) return;
-    const role = host.querySelector('.role');
-    const roleBlock = role instanceof HTMLElement ? role.offsetHeight + 6 : 0;
     const startW = disk.offsetWidth;
     const startH = disk.offsetHeight;
     const startX = event.clientX;
@@ -55,7 +61,7 @@ export function TaskNode({ data, selected }: NodeProps) {
       }
       d.onResize?.(
         clamp(startW + dx, 96, 720),
-        clamp(startH + dy, 44, 480) + roleBlock,
+        clamp(startH + dy, 44, 480),
       );
     };
     const up = () => {
@@ -68,19 +74,14 @@ export function TaskNode({ data, selected }: NodeProps) {
   }
 
   return (
-    <div className={`task-node ${anchor ? 'anchor' : ''} ${sized ? 'sized' : ''} ${statusClass} ${d.critical ? 'critical' : ''}`}>
-      {anchor ? <Handle type="target" position={Position.Left} isConnectableStart={false} className="port" /> : null}
+    <div className={`task-node ${anchor ? 'anchor' : ''} ${sized ? 'sized' : ''} ${statusClass} ${markClass} ${d.critical ? 'critical' : ''}`}>
       {!anchor && d.role ? <div className="role">{d.role}</div> : null}
       <div className="disk">
         {d.title}
-        {anchor ? null : (
-          <>
-            <Handle type="target" position={Position.Left} isConnectableStart={false} className="port" />
-            <Handle type="source" position={Position.Right} isConnectableEnd={false} className="port" />
-          </>
-        )}
+        {anchor ? null : <div className="taken">{d.taken ? 'взял' : 'не взял'}</div>}
+        <Handle type="target" position={Position.Left} isConnectableStart={false} className="port" />
+        <Handle type="source" position={Position.Right} isConnectableEnd={false} className="port" />
       </div>
-      {anchor ? <Handle type="source" position={Position.Right} isConnectableEnd={false} className="port" /> : null}
       {selected ? (
         <button
           type="button"

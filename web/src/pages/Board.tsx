@@ -14,10 +14,9 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { api, errorMessage } from '../api';
-import { useAuth } from '../auth';
 import { CardDialog } from '../components/CardDialog';
 
-type User = { id: string; name: string };
+type User = { id: string; name: string; email: string };
 type Card = {
   id: string;
   title: string;
@@ -75,13 +74,14 @@ function placeCard(board: Board, cardId: string, columnKey: string, position: nu
 
 export function BoardPage() {
   const { goalId, nodeId } = useParams();
-  const { user } = useAuth();
   const [board, setBoard] = useState<Board | null>(null);
+  const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<User[]>([]);
   const [error, setError] = useState('');
   const [title, setTitle] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [admin, setAdmin] = useState(() => (sessionStorage.getItem('vp_viewer') || 'admin') === 'admin');
   const dragged = useRef(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -95,7 +95,29 @@ export function BoardPage() {
   }
 
   useEffect(() => {
-    load().catch((err) => setError(errorMessage(err)));
+    function sync() {
+      setAdmin((sessionStorage.getItem('vp_viewer') || 'admin') === 'admin');
+    }
+    window.addEventListener('focus', sync);
+    return () => window.removeEventListener('focus', sync);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    load()
+      .then(() => {
+        if (!cancelled) setLoading(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(errorMessage(err));
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeId]);
 
@@ -164,10 +186,14 @@ export function BoardPage() {
       <header className="topbar">
         <div>
           <Link to={`/goals/${goalId}?node=${nodeId}`}>К схеме</Link>
-          <strong style={{ marginLeft: 12 }}>{board?.title ?? 'Доска'}</strong>
+          {board?.title ? <strong style={{ marginLeft: 12 }}>{board.title}</strong> : null}
         </div>
       </header>
+      <main className="board-page">
       {error && <div className="error" style={{ padding: '8px 16px' }}>{error}</div>}
+      {loading || !board ? (
+        loading ? <p className="muted" role="status" style={{ padding: '8px 16px' }}>загрузка…</p> : null
+      ) : (
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
@@ -194,15 +220,18 @@ export function BoardPage() {
           {dragging ? <CardFace card={dragging.card} names={names} overlay /> : null}
         </DragOverlay>
       </DndContext>
-      {openId && user && (
+      )}
+      {openId && (
         <CardDialog
           cardId={openId}
           users={users}
-          me={user.id}
+          me={users.find((item) => item.email === 'founder@demo.local')?.id ?? ''}
+          admin={admin}
           onClose={() => setOpenId(null)}
           onChanged={() => void load()}
         />
       )}
+      </main>
     </div>
   );
 }
@@ -225,23 +254,33 @@ function ColumnView({
   const { setNodeRef } = useDroppable({ id: `col:${column.key}` });
   return (
     <section className="column" ref={setNodeRef}>
-      <strong>{column.title}</strong>
-      <SortableContext items={column.cards.map((card) => card.id)} strategy={verticalListSortingStrategy}>
-        {column.cards.map((card) => (
-          <SortableCard key={card.id} card={card} names={names} onOpen={onOpen} />
-        ))}
-      </SortableContext>
+      <div className="column-head">
+        <strong>{column.title}</strong>
+        <span className="muted">{column.cards.length}</span>
+      </div>
+      <div className="column-cards">
+        <SortableContext items={column.cards.map((card) => card.id)} strategy={verticalListSortingStrategy}>
+          {column.cards.map((card) => (
+            <SortableCard key={card.id} card={card} names={names} onOpen={onOpen} />
+          ))}
+        </SortableContext>
+        {column.cards.length === 0 ? <p className="muted column-empty">Пусто</p> : null}
+      </div>
       {column.key === 'todo' && (
-        <div className="row">
-          <input
-            value={title}
-            placeholder="Название"
-            onChange={(event) => setTitle(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') onCreate();
-            }}
-          />
-          <button className="btn" type="button" onClick={onCreate}>Добавить</button>
+        <div className="column-add">
+          <div className="row">
+            <input
+              id="card-title"
+              name="cardTitle"
+              value={title}
+              placeholder="Название"
+              onChange={(event) => setTitle(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') onCreate();
+              }}
+            />
+            <button className="btn" type="button" onClick={onCreate}>Добавить</button>
+          </div>
         </div>
       )}
     </section>
@@ -258,17 +297,17 @@ function CardFace({
   overlay?: boolean;
 }) {
   const people = card.assigneeIds.map((id) => names.get(id) ?? id).join(', ');
+  const marks = [
+    card.priority !== 'medium' ? PRIORITY[card.priority] ?? card.priority : '',
+    card.dueDate ? card.dueDate.split('-').reverse().join('.') : '',
+  ].filter(Boolean);
   return (
     <article className={overlay ? 'kcard overlay' : 'kcard'}>
       <strong>{card.title}</strong>
-      <div className="muted">
-        {PRIORITY[card.priority] ?? card.priority}
-        {card.dueDate ? ` · ${card.dueDate}` : ''}
-      </div>
-      {people && <div className="muted">{people}</div>}
-      <div className="muted">
-        Чек-лист {card.doneItems}/{card.itemCount} · {card.minutes} мин
-      </div>
+      {marks.length > 0 ? <div className="muted">{marks.join(' · ')}</div> : null}
+      {people ? <div className="muted">{people}</div> : null}
+      {card.itemCount > 0 ? <div className="muted">Чек-лист {card.doneItems}/{card.itemCount}</div> : null}
+      {card.minutes > 0 ? <div className="muted">{card.minutes} мин</div> : null}
     </article>
   );
 }

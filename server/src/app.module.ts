@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { HealthController } from './health.controller';
+import { DemoActorGuard } from './common/demo-actor.guard';
 import { UsersModule } from './users/users.module';
-import { AuthModule } from './auth/auth.module';
 import { GoalsModule } from './goals/goals.module';
 import { GraphModule } from './graph/graph.module';
 import { KanbanModule } from './kanban/kanban.module';
@@ -30,12 +31,11 @@ import { SeedService } from './seed/seed.service';
       }),
     }),
     UsersModule,
-    AuthModule,
     GoalsModule,
     GraphModule,
     KanbanModule,
   ],
   controllers: [HealthController],
-  providers: [SeedService],
+  providers: [SeedService, { provide: APP_GUARD, useClass: DemoActorGuard }],
 })
 export class AppModule {}
