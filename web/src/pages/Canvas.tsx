@@ -19,6 +19,7 @@ import '@xyflow/react/dist/style.css';
 import { api, errorMessage } from '../api';
 import { TaskNode, type TaskData } from '../components/TaskNode';
 import { analyzeGraph, formatTrackedEstimate } from '../schedule';
+import { widgetMode } from '../portal-auth';
 import { buildChain, currentOf, mine, statusLabel } from '../process-view';
 
 type User = { id: string; name: string; email: string; position: string };
@@ -240,7 +241,9 @@ function CanvasInner() {
   const [error, setError] = useState('');
   const [deadlineExceeded, setDeadlineExceeded] = useState(false);
   const [finishDate, setFinishDate] = useState<string | null>(null);
-  const [viewerKey, setViewerKey] = useState(() => sessionStorage.getItem('vp_viewer') || 'admin');
+  const [viewerKey, setViewerKey] = useState(() =>
+    widgetMode ? 'admin' : sessionStorage.getItem('vp_viewer') || 'admin',
+  );
   const [showAll, setShowAll] = useState(false);
   const [docMarks, setDocMarks] = useState<Record<string, DocMark>>({});
   const adminEdit = useRef(true);
@@ -935,19 +938,23 @@ function CanvasInner() {
           </div>
         </div>
         <div className="process-row">
-          <label className="muted" htmlFor="viewer">Кто смотрит</label>
-          <select
-            id="viewer"
-            value={viewer.key}
-            onChange={(event) => {
-              setViewerKey(event.target.value);
-              sessionStorage.setItem('vp_viewer', event.target.value);
-            }}
-          >
-            {viewers.map((item) => (
-              <option key={item.key} value={item.key}>{item.label}</option>
-            ))}
-          </select>
+          {widgetMode ? null : (
+            <>
+              <label className="muted" htmlFor="viewer">Кто смотрит</label>
+              <select
+                id="viewer"
+                value={viewer.key}
+                onChange={(event) => {
+                  setViewerKey(event.target.value);
+                  sessionStorage.setItem('vp_viewer', event.target.value);
+                }}
+              >
+                {viewers.map((item) => (
+                  <option key={item.key} value={item.key}>{item.label}</option>
+                ))}
+              </select>
+            </>
+          )}
           <span className="muted">v{version}</span>
         </div>
       </header>

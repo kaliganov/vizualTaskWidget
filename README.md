@@ -39,7 +39,7 @@ npm run dev:web
 
 ## Кто действует
 
-Своего входа нет. Запросы идут от `founder@demo.local`. Иван Петров и Мария Сидорова остаются в списке ответственных.
+Локально своего входа нет: запросы идут от `founder@demo.local`. На портале так нельзя — нужен JWT, см. [docs/vnedrenie-v-portal.md](docs/vnedrenie-v-portal.md). Иван Петров и Мария Сидорова остаются в списке ответственных демо.
 
 ## Проверки
 
@@ -56,5 +56,6 @@ npm run build --prefix web
 | Файл | Зачем |
 | --- | --- |
 | [docs/TZ.md](docs/TZ.md) | Как должно работать демо |
+| [docs/vnedrenie-v-portal.md](docs/vnedrenie-v-portal.md) | Как встроить виджет в портал |
 | [docs/resheniya-zakazchik.md](docs/resheniya-zakazchik.md) | История решений |
 | [docs/TZ-visual-paths-widget.md](docs/TZ-visual-paths-widget.md) | Старое ТЗ, по нему не реализовывать |

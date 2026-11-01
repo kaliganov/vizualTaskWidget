@@ -29,10 +29,6 @@ export class CreateGoalDto {
 
   @IsOptional()
   @IsString()
-  companyId?: string;
-
-  @IsOptional()
-  @IsString()
   @MaxLength(80)
   applicationNumber?: string;
 
@@ -89,10 +85,6 @@ export class UpdateGoalDto {
     message: 'Неизвестный статус цели',
   })
   status?: 'draft' | 'active' | 'completed' | 'archived';
-
-  @IsOptional()
-  @IsString()
-  companyId?: string;
 
   @IsOptional()
   @IsString()

@@ -12,6 +12,7 @@ export class SeedService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    if (this.config.get('NODE_ENV') === 'production') return;
     const companyId = this.config.get('DEMO_COMPANY_ID', 'demo-company');
     if ((await this.users.count()) === 0) {
       const accounts = [

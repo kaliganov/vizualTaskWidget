@@ -19,6 +19,15 @@ export function errorMessage(err: unknown) {
 const readCache = new Map<string, unknown>();
 const readInflight = new Map<string, Promise<unknown>>();
 let readEpoch = 0;
+let portalToken = '';
+
+export function setPortalToken(next: string) {
+  if (next === portalToken) return;
+  portalToken = next;
+  readEpoch += 1;
+  readCache.clear();
+  readInflight.clear();
+}
 
 function isRead(options: RequestInit) {
   return (options.method ?? 'GET').toUpperCase() === 'GET';
@@ -32,6 +41,7 @@ async function request<T>(path: string, options: RequestInit): Promise<T> {
       headers: {
         'Content-Type': 'application/json',
         ...(options.headers ?? {}),
+        ...(portalToken ? { Authorization: `Bearer ${portalToken}` } : {}),
       },
     });
   } catch {
@@ -63,19 +73,20 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     readInflight.clear();
     return request<T>(path, options);
   }
-  const cached = readCache.get(path);
+  const cacheKey = `${portalToken}\n${path}`;
+  const cached = readCache.get(cacheKey);
   if (cached !== undefined) return cached as T;
-  const pending = readInflight.get(path);
+  const pending = readInflight.get(cacheKey);
   if (pending) return pending as Promise<T>;
   const epoch = readEpoch;
   const promise = request<T>(path, options).then((data) => {
-    if (epoch === readEpoch) readCache.set(path, data);
+    if (epoch === readEpoch) readCache.set(cacheKey, data);
     return data;
   });
-  readInflight.set(path, promise);
+  readInflight.set(cacheKey, promise);
   try {
     return await promise;
   } finally {
-    if (readInflight.get(path) === promise) readInflight.delete(path);
+    if (readInflight.get(cacheKey) === promise) readInflight.delete(cacheKey);
   }
 }

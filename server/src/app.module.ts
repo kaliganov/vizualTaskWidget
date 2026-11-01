@@ -2,8 +2,9 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { JwtModule } from '@nestjs/jwt';
 import { HealthController } from './health.controller';
-import { DemoActorGuard } from './common/demo-actor.guard';
+import { ActorGuard } from './common/actor.guard';
 import { UsersModule } from './users/users.module';
 import { GoalsModule } from './goals/goals.module';
 import { GraphModule } from './graph/graph.module';
@@ -30,12 +31,19 @@ import { SeedService } from './seed/seed.service';
         migrationsRun: true,
       }),
     }),
+    JwtModule.registerAsync({
+      global: true,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        secret: config.get<string>('JWT_SECRET') || 'demo-only',
+      }),
+    }),
     UsersModule,
     GoalsModule,
     GraphModule,
     KanbanModule,
   ],
   controllers: [HealthController],
-  providers: [SeedService, { provide: APP_GUARD, useClass: DemoActorGuard }],
+  providers: [SeedService, { provide: APP_GUARD, useClass: ActorGuard }],
 })
 export class AppModule {}

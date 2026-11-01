@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, errorMessage } from '../api';
+import { widgetMode } from '../portal-auth';
 
 type Goal = {
   id: string;
@@ -39,14 +40,16 @@ export function GoalsPage() {
   const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(true);
   const [panel, setPanel] = useState<'new' | 'deal' | 'filter' | 'templates' | null>(null);
-  const [admin, setAdmin] = useState(() => (sessionStorage.getItem('vp_viewer') || 'admin') === 'admin');
+  const [admin, setAdmin] = useState(
+    () => widgetMode || (sessionStorage.getItem('vp_viewer') || 'admin') === 'admin',
+  );
   const [templates, setTemplates] = useState<ProcessTemplate[]>([]);
   const [templateTitle, setTemplateTitle] = useState('');
   const [templateError, setTemplateError] = useState('');
 
   useEffect(() => {
     function sync() {
-      setAdmin((sessionStorage.getItem('vp_viewer') || 'admin') === 'admin');
+      setAdmin(widgetMode || (sessionStorage.getItem('vp_viewer') || 'admin') === 'admin');
     }
     window.addEventListener('focus', sync);
     return () => window.removeEventListener('focus', sync);

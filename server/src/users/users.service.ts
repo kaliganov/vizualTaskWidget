@@ -1,7 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { randomBytes } from 'crypto';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
+import { apiError } from '../common/api-error';
 import { User } from './user.entity';
 
 @Injectable()
@@ -13,6 +15,48 @@ export class UsersService {
 
   findByEmail(email: string) {
     return this.users.findOne({ where: { email: email.toLowerCase() } });
+  }
+
+  /** Пользователь из проверенного JWT. Пароль не задаётся известным значением. */
+  async ensureFromToken(data: { id: string; email: string; name: string; companyId: string }) {
+    const existing = await this.users.findOne({ where: { id: data.id } });
+    if (existing) {
+      if (existing.companyId !== data.companyId || existing.email !== data.email) {
+        throw apiError(
+          HttpStatus.UNAUTHORIZED,
+          'UNAUTHORIZED',
+          'Токен не совпал с известным пользователем',
+        );
+      }
+      return existing;
+    }
+    const byEmail = await this.findByEmail(data.email);
+    if (byEmail) {
+      throw apiError(
+        HttpStatus.UNAUTHORIZED,
+        'UNAUTHORIZED',
+        'Токен не совпал с известным пользователем',
+      );
+    }
+    const user = this.users.create({
+      id: data.id,
+      email: data.email,
+      passwordHash: await bcrypt.hash(randomBytes(32).toString('hex'), 10),
+      name: data.name,
+      companyId: data.companyId,
+      position: '',
+    });
+    try {
+      return await this.users.save(user);
+    } catch {
+      const again = await this.users.findOne({ where: { id: data.id } });
+      if (again && again.companyId === data.companyId && again.email === data.email) return again;
+      throw apiError(
+        HttpStatus.UNAUTHORIZED,
+        'UNAUTHORIZED',
+        'Токен не совпал с известным пользователем',
+      );
+    }
   }
 
   listByCompany(companyId: string) {

@@ -14,6 +14,7 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { api, errorMessage } from '../api';
+import { widgetMode } from '../portal-auth';
 import { CardDialog } from '../components/CardDialog';
 
 type User = { id: string; name: string; email: string };
@@ -81,7 +82,9 @@ export function BoardPage() {
   const [title, setTitle] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [admin, setAdmin] = useState(() => (sessionStorage.getItem('vp_viewer') || 'admin') === 'admin');
+  const [admin, setAdmin] = useState(
+    () => widgetMode || (sessionStorage.getItem('vp_viewer') || 'admin') === 'admin',
+  );
   const dragged = useRef(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -96,7 +99,7 @@ export function BoardPage() {
 
   useEffect(() => {
     function sync() {
-      setAdmin((sessionStorage.getItem('vp_viewer') || 'admin') === 'admin');
+      setAdmin(widgetMode || (sessionStorage.getItem('vp_viewer') || 'admin') === 'admin');
     }
     window.addEventListener('focus', sync);
     return () => window.removeEventListener('focus', sync);

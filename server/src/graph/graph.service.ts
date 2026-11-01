@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { apiError } from '../common/api-error';
 import type { AuthUser } from '../common/current-user.decorator';
 import { Goal } from '../goals/goal.entity';
@@ -118,6 +118,13 @@ export class GraphService {
           })),
         );
       if (same) return;
+
+      await this.assertOwnedIds(
+        em,
+        goalId,
+        dto.nodes.map((node) => node.id).filter((id) => !existingById.has(id)),
+        dto.edges.map((edge) => edge.id),
+      );
 
       const incomingIds = new Set(dto.nodes.map((node) => node.id));
       const removed = existing
@@ -247,6 +254,34 @@ export class GraphService {
     node.takenAt = taken ? new Date() : null;
     await this.nodes.save(node);
     return { takenAt: node.takenAt };
+  }
+
+  private async assertOwnedIds(
+    em: EntityManager,
+    goalId: string,
+    newNodeIds: string[],
+    edgeIds: string[],
+  ) {
+    if (newNodeIds.length) {
+      const clash = await em.find(GraphNode, { where: { id: In(newNodeIds) } });
+      if (clash.length) {
+        throw apiError(
+          HttpStatus.CONFLICT,
+          'NODE_ID_TAKEN',
+          'Идентификатор узла уже занят',
+        );
+      }
+    }
+    if (edgeIds.length) {
+      const clash = await em.find(GraphEdge, { where: { id: In(edgeIds) } });
+      if (clash.some((edge) => edge.goalId !== goalId)) {
+        throw apiError(
+          HttpStatus.CONFLICT,
+          'EDGE_ID_TAKEN',
+          'Идентификатор стрелки уже занят',
+        );
+      }
+    }
   }
 
   private async present(goal: Goal) {
